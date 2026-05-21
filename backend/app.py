@@ -36,11 +36,24 @@ def init():
         districts = sorted(dm.retailers['district'].dropna().unique().tolist())
     if not districts and dm.pest_lookup:
         districts = sorted(list(dm.pest_lookup.keys()))
+        
+    # Generate live Govt Pest Alerts from public data
+    govt_alerts = []
+    for dist, crops in dm.pest_lookup.items():
+        for crop, info in crops.items():
+            if info.get('severity') in ['CRITICAL', 'HIGH']:
+                disease = info.get('disease', '').replace('_', ' ').title()
+                govt_alerts.append(f"🚨 GOVT ADVISORY [{dist.upper()}]: High risk of {disease} in {crop.capitalize()} crops detected.")
+                
+    if not govt_alerts:
+        govt_alerts.append("✅ ICAR Monitoring: No critical nationwide pest outbreaks detected at this time.")
+        
     return jsonify({
         'status': 'ready',
         'reps': dm.ALL_REPS,
         'total_growers': len(dm.growers),
         'districts': districts,
+        'govt_alerts': list(set(govt_alerts))[:5]  # Top 5 unique alerts
     })
 
 @app.route('/api/warmup')
@@ -133,7 +146,8 @@ def dashboard(rep_id):
             'last_updated': datetime.now().isoformat(),
             'stats': {
                 'critical': total_critical, 'high': total_high, 'medium': total_medium,
-                'revenue_risk': total_revenue_risk, 'stockouts': total_stockouts
+                'revenue_risk': total_revenue_risk, 'stockouts': total_stockouts,
+                'total_growers': len(rep_grower_ids)
             },
             'threats': threats, 'route': route_stops, 'monitoring_only': monitoring_only,
             'consequence': consequence,

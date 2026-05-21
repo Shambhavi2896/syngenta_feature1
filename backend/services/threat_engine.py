@@ -186,7 +186,8 @@ def generate_pest_climate_intelligence(
     forecast_humidity = weather_detail.get('forecast_humidity_7d', DEFAULT_HUMIDITY)
 
     if not pest_info:
-        logger.warning(f"No pest-climate profile available for {disease_key}")
+        if disease_key and disease_key.lower() != 'unknown':
+            logger.debug(f"No pest-climate profile available for {disease_key}")
         return {
             'available': False,
             'disease_code': disease_code,

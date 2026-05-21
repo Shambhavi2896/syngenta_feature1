@@ -67,8 +67,35 @@ async function loadRepresentatives() {
       '<option value="">Select Representative...</option>' +
       reps.map((rep) => `<option value="${rep}">${rep}</option>`).join("");
 
+    // Populate live global stats in top navbar
+    const totalGrowers = data.total_growers || 0;
+    const districts = data.districts || [];
+    const govtAlerts = data.govt_alerts || [];
+
+    const navGrowersEl = document.getElementById("navGlobalGrowers");
+    const navDistrictsEl = document.getElementById("navGlobalDistricts");
+    const alertTextEl = document.getElementById("govtAlertText");
+
+    if (navGrowersEl) navGrowersEl.textContent = totalGrowers.toLocaleString();
+    if (navDistrictsEl) navDistrictsEl.textContent = districts.length;
+
+    if (alertTextEl && govtAlerts.length > 0) {
+      let alertIdx = 0;
+      alertTextEl.textContent = govtAlerts[0];
+      if (govtAlerts.length > 1) {
+        setInterval(() => {
+          alertTextEl.style.opacity = "0";
+          setTimeout(() => {
+            alertIdx = (alertIdx + 1) % govtAlerts.length;
+            alertTextEl.textContent = govtAlerts[alertIdx];
+            alertTextEl.style.opacity = "1";
+          }, 300);
+        }, 5000);
+      }
+    }
+
     // Load districts for simulator
-    await loadDistricts();
+    loadDistricts(districts);
   } catch (error) {
     console.error("Error loading reps:", error);
     showError("Failed to load representatives. Please refresh the page.");
@@ -77,16 +104,11 @@ async function loadRepresentatives() {
   }
 }
 
-async function loadDistricts() {
+function loadDistricts(districts) {
   try {
-    const response = await fetch("/api/init");
-
-    if (!response.ok) throw new Error(`HTTP ${response.status}`);
-
-    const data = await response.json();
-    const districts = data.districts || [];
-
     const select = document.getElementById("simDistrict");
+    if (!select) return;
+
     select.innerHTML =
       '<option value="">Select district to simulate outbreak...</option>' +
       districts.map((d) => `<option value="${d}">${d}</option>`).join("");
@@ -143,6 +165,7 @@ async function loadDashboard() {
     updateWeather({
       current: data.weather,
       risk: { advice: data.weather_interpretation },
+      diseases: data.district_diseases,
     });
     updateRoute({ stops: data.route, monitoring_only: data.monitoring_only });
     updateInactionCost({
@@ -369,31 +392,32 @@ function updateSidebar(repInfo) {
 function updateWeather(weatherData) {
   const card = document.getElementById("weatherCard");
 
-  // Add debug logging
   console.log("Weather data received:", weatherData);
 
   if (!weatherData || !weatherData.current) {
     console.warn("No weather data available, showing fallback");
-    // Show fallback weather card instead of hiding
     showFallbackWeather();
     return;
   }
 
   const current = weatherData.current;
   const risk = weatherData.risk || {};
+  const diseases = weatherData.diseases || [];
 
-  // Check if values exist, use fallbacks if not
   const humidity = current.humidity_avg || current.humidity || 65;
   const temp = current.temperature_avg || current.temperature || 25;
   const rain = current.rainfall_mm || current.rainfall || 0;
   const wind = current.wind_speed || 0;
+  const wetness = current.leaf_wetness || current.leaf_wetness_hours || 0;
 
   document.getElementById("weatherHumidity").textContent = `${humidity}%`;
   document.getElementById("weatherTemp").textContent = `${temp}°C`;
   document.getElementById("weatherRain").textContent = `${rain}mm`;
   document.getElementById("weatherWind").textContent = `${wind}km/h`;
 
-  // Update weather icon based on conditions
+  const wetnessEl = document.getElementById("weatherWetness");
+  if (wetnessEl) wetnessEl.textContent = `${wetness}h`;
+
   const weatherIcon = document.getElementById("weatherIcon");
   if (rain > 0) {
     weatherIcon.className = "fas fa-cloud-rain text-2xl text-blue-500";
@@ -403,10 +427,33 @@ function updateWeather(weatherData) {
     weatherIcon.className = "fas fa-sun text-2xl text-yellow-500";
   }
 
-  // Show alert if high risk
   const alertDiv = document.getElementById("weatherAlert");
-  if (risk.advice) {
-    alertDiv.innerHTML = `<i class="fas fa-exclamation-triangle mr-1"></i> ${risk.advice}`;
+  let adviceText = risk.advice
+    ? `<div class="mb-2"><i class="fas fa-exclamation-triangle mr-1"></i> ${risk.advice}</div>`
+    : "";
+
+  // Agricultural Intelligence Explainability
+  if (diseases.length > 0) {
+    const highRiskDiseases = diseases.filter(
+      (d) => d.risk_level === "HIGH" || d.risk_level === "CRITICAL"
+    );
+    if (highRiskDiseases.length > 0) {
+      const dName = highRiskDiseases[0].disease.replace(/_/g, " ");
+      adviceText += `<div class="mt-2 pt-2 border-t border-amber-200 text-[11px] font-semibold text-amber-800">
+        <i class="fas fa-bug mr-1"></i> Pest Intel: Current weather actively supports the spread of ${dName} in ${
+        highRiskDiseases[0].crop
+      }. 
+        ${
+          wetness > 4
+            ? `The ${wetness}h of leaf wetness is highly conducive for spore germination.`
+            : ""
+        }
+      </div>`;
+    }
+  }
+
+  if (adviceText) {
+    alertDiv.innerHTML = adviceText;
     alertDiv.classList.remove("hidden");
   } else {
     alertDiv.classList.add("hidden");
@@ -418,20 +465,24 @@ function updateWeather(weatherData) {
 function showFallbackWeather() {
   const card = document.getElementById("weatherCard");
 
-  // Set fallback values
-  document.getElementById("weatherHumidity").textContent = "65%";
-  document.getElementById("weatherTemp").textContent = "28°C";
-  document.getElementById("weatherRain").textContent = "0mm";
-  document.getElementById("weatherWind").textContent = "12km/h";
+  document.getElementById("weatherHumidity").textContent = "--%";
+  document.getElementById("weatherTemp").textContent = "--°C";
+  document.getElementById("weatherRain").textContent = "--mm";
+  document.getElementById("weatherWind").textContent = "--km/h";
+
+  const wetnessEl = document.getElementById("weatherWetness");
+  if (wetnessEl) wetnessEl.textContent = "--h";
 
   const weatherIcon = document.getElementById("weatherIcon");
-  weatherIcon.className = "fas fa-sun text-2xl text-yellow-500";
+  weatherIcon.className = "fas fa-cloud text-2xl text-slate-400";
 
   const alertDiv = document.getElementById("weatherAlert");
-  alertDiv.classList.add("hidden");
+  alertDiv.innerHTML = `<i class="fas fa-info-circle mr-1"></i> Live weather data unavailable`;
+  alertDiv.className =
+    "text-xs p-2 rounded-lg bg-slate-50 text-slate-500 mt-2 block";
 
   card.classList.remove("hidden");
-  console.log("Showing fallback weather data");
+  console.log("Showing empty state for weather data");
 }
 
 function updateRoute(routeData) {
@@ -631,32 +682,71 @@ function updateMLWeights(weights) {
   }
 
   container.innerHTML = `
-    <div class="space-y-1">
-      <div class="flex justify-between text-xs">
-        <span>🌱 Biological Window</span>
-        <span class="font-bold">${Math.round(weights.bio_window * 100)}%</span>
+    <div class="space-y-3">
+      <div>
+        <div class="flex justify-between text-xs font-semibold mb-1">
+          <span class="text-slate-700">🌱 Biological Window</span>
+          <span class="text-indigo-600">${Math.round(
+            weights.bio_window * 100
+          )}%</span>
+        </div>
+        <div class="h-1.5 w-full bg-slate-100 rounded-full overflow-hidden">
+          <div class="h-full bg-gradient-to-r from-indigo-500 to-purple-500 rounded-full" style="width: ${
+            weights.bio_window * 100
+          }%"></div>
+        </div>
       </div>
-      <div class="flex justify-between text-xs">
-        <span>📦 Inventory Pressure</span>
-        <span class="font-bold">${Math.round(
-          weights.inv_pressure * 100
-        )}%</span>
+      <div>
+        <div class="flex justify-between text-xs font-semibold mb-1">
+          <span class="text-slate-700">📦 Inventory Pressure</span>
+          <span class="text-indigo-600">${Math.round(
+            weights.inv_pressure * 100
+          )}%</span>
+        </div>
+        <div class="h-1.5 w-full bg-slate-100 rounded-full overflow-hidden">
+          <div class="h-full bg-gradient-to-r from-blue-500 to-cyan-500 rounded-full" style="width: ${
+            weights.inv_pressure * 100
+          }%"></div>
+        </div>
       </div>
-      <div class="flex justify-between text-xs">
-        <span>📱 Digital Warmth</span>
-        <span class="font-bold">${Math.round(weights.dig_warmth * 100)}%</span>
+      <div>
+        <div class="flex justify-between text-xs font-semibold mb-1">
+          <span class="text-slate-700">📱 Digital Warmth</span>
+          <span class="text-indigo-600">${Math.round(
+            weights.dig_warmth * 100
+          )}%</span>
+        </div>
+        <div class="h-1.5 w-full bg-slate-100 rounded-full overflow-hidden">
+          <div class="h-full bg-gradient-to-r from-emerald-400 to-teal-500 rounded-full" style="width: ${
+            weights.dig_warmth * 100
+          }%"></div>
+        </div>
       </div>
-      <div class="flex justify-between text-xs">
-        <span>⏰ Visit Recency</span>
-        <span class="font-bold">${Math.round(
-          weights.visit_recency * 100
-        )}%</span>
+      <div>
+        <div class="flex justify-between text-xs font-semibold mb-1">
+          <span class="text-slate-700">⏰ Visit Recency</span>
+          <span class="text-indigo-600">${Math.round(
+            weights.visit_recency * 100
+          )}%</span>
+        </div>
+        <div class="h-1.5 w-full bg-slate-100 rounded-full overflow-hidden">
+          <div class="h-full bg-gradient-to-r from-amber-400 to-orange-500 rounded-full" style="width: ${
+            weights.visit_recency * 100
+          }%"></div>
+        </div>
       </div>
-      <div class="flex justify-between text-xs">
-        <span>📈 POS Momentum</span>
-        <span class="font-bold">${Math.round(
-          weights.pos_momentum * 100
-        )}%</span>
+      <div>
+        <div class="flex justify-between text-xs font-semibold mb-1">
+          <span class="text-slate-700">📈 POS Momentum</span>
+          <span class="text-indigo-600">${Math.round(
+            weights.pos_momentum * 100
+          )}%</span>
+        </div>
+        <div class="h-1.5 w-full bg-slate-100 rounded-full overflow-hidden">
+          <div class="h-full bg-gradient-to-r from-rose-400 to-red-500 rounded-full" style="width: ${
+            weights.pos_momentum * 100
+          }%"></div>
+        </div>
       </div>
     </div>
   `;
@@ -740,268 +830,278 @@ function loadThreatDetail(tehsilName) {
 
 function displayThreatModal(threat) {
   const modal = document.getElementById("threatModal");
-  if (!modal) {
-    createThreatModal();
-  }
-
   const content = document.getElementById("threatModalContent");
+
+  // Update header
+  document.getElementById("modalTehsilName").textContent =
+    threat.tehsil || "Threat Intelligence";
+  document.getElementById("modalDistrictName").textContent =
+    threat.district || "";
+
   const pestIntel = threat.pest_climate_intel || {};
   const advisory = threat.agri_advisory || {};
+  const isCritical = threat.threat_level === "CRITICAL";
+  const isHigh = threat.threat_level === "HIGH";
+
+  const headerBgClass = isCritical
+    ? "bg-red-50 border-red-200"
+    : isHigh
+    ? "bg-orange-50 border-orange-200"
+    : "bg-amber-50 border-amber-200";
 
   content.innerHTML = `
-    <div class="space-y-4">
-      <!-- Header -->
-      <div class="flex justify-between items-start">
-        <div>
-          <h2 class="text-2xl font-bold text-slate-800">${escapeHtml(
-            threat.tehsil
-          )}</h2>
-          <p class="text-sm text-slate-500">${threat.district}</p>
-        </div>
-        <div class="text-right">
-          <div class="text-3xl font-bold ${getHeatScoreColor(
-            threat.heat_score
-          )}">${Math.round(threat.heat_score)}</div>
-          <span class="inline-block badge ${getBadgeClass(
-            threat.threat_level
-          )}">${threat.threat_level}</span>
+    <!-- Threat Level Header -->
+    <div class="${headerBgClass} rounded-xl p-4 border flex items-center justify-between">
+      <div>
+        <span class="text-xs uppercase tracking-wider font-semibold text-slate-500">Current Threat Level</span>
+        <div class="text-2xl font-bold mt-1 ${
+          isCritical
+            ? "text-red-600"
+            : isHigh
+            ? "text-orange-600"
+            : "text-amber-600"
+        }">
+          ${threat.threat_level || "LOW"}
         </div>
       </div>
-
-      <!-- Score Breakdown -->
-      <div class="bg-slate-50 rounded-lg p-3">
-        <div class="text-xs font-semibold text-slate-600 mb-2">Component Scores</div>
-        <div class="grid grid-cols-5 gap-2 text-xs">
-          <div class="bg-white rounded p-2 text-center">
-            <div class="font-bold text-slate-700">${
-              threat.score_breakdown?.bio || 0
-            }</div>
-            <div class="text-slate-500">🌱 Bio</div>
-          </div>
-          <div class="bg-white rounded p-2 text-center">
-            <div class="font-bold text-slate-700">${
-              threat.score_breakdown?.inv || 0
-            }</div>
-            <div class="text-slate-500">📦 Inv</div>
-          </div>
-          <div class="bg-white rounded p-2 text-center">
-            <div class="font-bold text-slate-700">${
-              threat.score_breakdown?.dig || 0
-            }</div>
-            <div class="text-slate-500">📱 Dig</div>
-          </div>
-          <div class="bg-white rounded p-2 text-center">
-            <div class="font-bold text-slate-700">${
-              threat.score_breakdown?.rec || 0
-            }</div>
-            <div class="text-slate-500">⏰ Rec</div>
-          </div>
-          <div class="bg-white rounded p-2 text-center">
-            <div class="font-bold text-slate-700">${
-              threat.score_breakdown?.pos || 0
-            }</div>
-            <div class="text-slate-500">📈 POS</div>
-          </div>
-        </div>
+      <div class="text-right">
+        <div class="text-xs text-slate-500">Heat Score</div>
+        <div class="text-3xl font-bold ${getHeatScoreColor(
+          threat.heat_score
+        )}">${Math.round(threat.heat_score || 0)}</div>
       </div>
+    </div>
 
-      <!-- Crop & Stage -->
-      <div class="grid grid-cols-2 gap-3">
-        <div class="bg-emerald-50 rounded-lg p-3">
-          <div class="text-xs text-emerald-700 font-semibold">Dominant Crop</div>
-          <div class="text-lg font-bold text-slate-800">${
-            threat.dominant_crop
-          }</div>
-          <div class="text-xs text-emerald-600">${threat.dominant_stage}</div>
-        </div>
-        <div class="bg-blue-50 rounded-lg p-3">
-          <div class="text-xs text-blue-700 font-semibold">Grower Status</div>
-          <div class="text-lg font-bold text-slate-800">${
-            threat.num_growers
-          }</div>
-          <div class="text-xs text-blue-600">${
-            threat.critical_growers
-          } vulnerable</div>
-        </div>
+    <!-- Component Scores -->
+    <div class="bg-slate-50 rounded-xl p-4">
+      <div class="text-xs font-semibold text-slate-600 mb-3 uppercase tracking-wider">Component Scores</div>
+      <div class="grid grid-cols-5 gap-2">
+        <div class="bg-white rounded-lg p-2 text-center shadow-sm"><div class="font-bold text-slate-700">${
+          threat.score_breakdown?.bio || 0
+        }</div><div class="text-[10px] text-slate-500">🌱 Bio</div></div>
+        <div class="bg-white rounded-lg p-2 text-center shadow-sm"><div class="font-bold text-slate-700">${
+          threat.score_breakdown?.inv || 0
+        }</div><div class="text-[10px] text-slate-500">📦 Inv</div></div>
+        <div class="bg-white rounded-lg p-2 text-center shadow-sm"><div class="font-bold text-slate-700">${
+          threat.score_breakdown?.dig || 0
+        }</div><div class="text-[10px] text-slate-500">📱 Dig</div></div>
+        <div class="bg-white rounded-lg p-2 text-center shadow-sm"><div class="font-bold text-slate-700">${
+          threat.score_breakdown?.rec || 0
+        }</div><div class="text-[10px] text-slate-500">⏰ Rec</div></div>
+        <div class="bg-white rounded-lg p-2 text-center shadow-sm"><div class="font-bold text-slate-700">${
+          threat.score_breakdown?.pos || 0
+        }</div><div class="text-[10px] text-slate-500">📈 POS</div></div>
       </div>
+    </div>
 
-      ${
-        pestIntel.available
-          ? `
-      <!-- Pest Climate Intelligence -->
-      <div class="border border-amber-200 rounded-lg p-3 bg-amber-50">
-        <div class="text-xs font-bold text-amber-700 mb-2">🦠 Pest Climate Intelligence</div>
-        <div class="space-y-2 text-xs text-slate-700">
-          <div class="font-semibold text-amber-800">${
-            pestIntel.scientific_name
-          }</div>
-          <div><strong>Status:</strong> ${pestIntel.overall?.status}</div>
-          <div class="text-amber-800 font-medium">${
-            pestIntel.overall?.message
-          }</div>
-          <div class="border-t border-amber-200 pt-2">
-            <div class="font-semibold text-amber-700">Temperature</div>
-            <div>${pestIntel.temperature?.detail}</div>
-          </div>
-          <div class="border-t border-amber-200 pt-2">
-            <div class="font-semibold text-amber-700">Humidity</div>
-            <div>${pestIntel.humidity?.detail}</div>
-          </div>
-          <div class="border-t border-amber-200 pt-2">
-            <div class="font-semibold text-amber-700">Leaf Wetness</div>
-            <div>${pestIntel.leaf_wetness?.detail}</div>
-          </div>
-          ${
-            pestIntel.forecast_warning
-              ? `<div class="bg-red-100 border border-red-300 rounded p-2 mt-2 text-red-800">${pestIntel.forecast_warning}</div>`
-              : ""
-          }
-          <div class="border-t border-amber-200 pt-2">
-            <div class="font-semibold text-amber-700">Field Identification</div>
-            <div>${pestIntel.field_sign}</div>
-          </div>
-          <div class="border-t border-amber-200 pt-2">
-            <div class="font-semibold text-amber-700">Spread Mechanism</div>
-            <div>${pestIntel.spread_mechanism}</div>
-          </div>
-        </div>
+    <!-- Crop & Grower Status -->
+    <div class="grid grid-cols-2 gap-4">
+      <div class="bg-emerald-50 rounded-xl p-4 border border-emerald-100">
+        <div class="text-xs text-emerald-700 font-semibold uppercase tracking-wider">Dominant Crop</div>
+        <div class="text-xl font-bold text-slate-800 mt-1">${
+          threat.dominant_crop || "Unknown"
+        }</div>
+        <div class="text-sm text-emerald-600 mt-0.5">${
+          threat.dominant_stage || "Unknown Stage"
+        }</div>
       </div>
-      `
-          : ""
-      }
-
-      ${
-        advisory.guide
-          ? `
-      <!-- Agricultural Advisory -->
-      <div class="border border-green-200 rounded-lg p-3 bg-green-50">
-        <div class="text-xs font-bold text-green-700 mb-2">🌾 Agricultural Advisory</div>
-        <div class="space-y-2 text-xs text-slate-700">
-          <div><strong>Symptoms:</strong> ${advisory.symptoms}</div>
-          <div><strong>Conditions:</strong> ${advisory.conditions}</div>
-          <div><strong>Impact:</strong> ${advisory.impact}</div>
-          <div class="bg-green-100 rounded p-2"><strong>Guide:</strong> ${
-            advisory.guide
-          }</div>
-          ${
-            advisory.product
-              ? `<div><strong>Recommended Product:</strong> ${advisory.product} (₹${advisory.cost})</div>`
-              : ""
-          }
-        </div>
+      <div class="bg-blue-50 rounded-xl p-4 border border-blue-100">
+        <div class="text-xs text-blue-700 font-semibold uppercase tracking-wider">Grower Status</div>
+        <div class="text-xl font-bold text-slate-800 mt-1">${
+          threat.num_growers || 0
+        }</div>
+        <div class="text-sm text-blue-600">${
+          threat.critical_growers || 0
+        } vulnerable growers</div>
       </div>
-      `
-          : ""
-      }
+    </div>
 
-      <!-- Inventory Status -->
-      <div class="border border-slate-200 rounded-lg p-3">
-        <div class="text-xs font-bold text-slate-700 mb-2">📦 Inventory Status</div>
+    ${
+      pestIntel.available
+        ? `
+    <!-- Pest Climate Intelligence -->
+    <div class="border border-amber-200 rounded-xl p-4 bg-amber-50">
+      <div class="flex items-center gap-2 mb-3">
+        <i class="fas fa-biohazard text-amber-600"></i>
+        <span class="text-xs font-bold text-amber-800 uppercase tracking-wider">Pest Climate Intelligence</span>
+      </div>
+      <div class="space-y-3 text-sm">
+        <div class="font-semibold text-amber-900">${
+          pestIntel.scientific_name || "Unknown Pathogen"
+        }</div>
+        <div class="flex items-center gap-2">
+          <span class="px-2 py-0.5 rounded-full text-xs font-bold ${
+            pestIntel.overall?.status === "ACTIVE_THREAT"
+              ? "bg-red-500 text-white"
+              : "bg-amber-200 text-amber-800"
+          }">${pestIntel.overall?.status || "MONITOR"}</span>
+          <span class="text-amber-800">${
+            pestIntel.overall?.message || "Conditions being monitored"
+          }</span>
+        </div>
+        <div class="grid grid-cols-1 gap-2 text-xs">
+          <div class="bg-white/60 rounded-lg p-2"><span class="font-semibold">🌡️ Temperature:</span> ${
+            pestIntel.temperature?.detail || "Data unavailable"
+          }</div>
+          <div class="bg-white/60 rounded-lg p-2"><span class="font-semibold">💧 Humidity:</span> ${
+            pestIntel.humidity?.detail || "Data unavailable"
+          }</div>
+          <div class="bg-white/60 rounded-lg p-2"><span class="font-semibold">💦 Leaf Wetness:</span> ${
+            pestIntel.leaf_wetness?.detail || "Data unavailable"
+          }</div>
+        </div>
         ${
-          threat.inventory && threat.inventory.length > 0
-            ? threat.inventory
-                .map(
-                  (inv) => `
-          <div class="flex justify-between items-center text-sm">
-            <span>${inv.product}</span>
-            <span class="badge ${
-              inv.status === "CRITICAL"
-                ? "badge-critical"
-                : inv.status === "LOW"
-                ? "badge-high"
-                : "badge-low"
-            }">${inv.qty} units</span>
-          </div>
-          <div class="text-xs text-slate-500 mt-1">${inv.prediction}</div>
-        `
-                )
-                .join("")
-            : "<div class='text-slate-500'>No inventory data</div>"
+          pestIntel.forecast_warning
+            ? `<div class="bg-red-100 border border-red-300 rounded-lg p-2 text-red-800 text-xs">⚠️ ${pestIntel.forecast_warning}</div>`
+            : ""
+        }
+        <div class="text-xs text-amber-800 border-t border-amber-200 pt-2"><span class="font-semibold">🔍 Field Sign:</span> ${
+          pestIntel.field_sign || "Monitor for unusual symptoms"
+        }</div>
+      </div>
+    </div>
+    `
+        : ""
+    }
+
+    ${
+      advisory.guide
+        ? `
+    <!-- Agricultural Advisory -->
+    <div class="border border-green-200 rounded-xl p-4 bg-green-50">
+      <div class="flex items-center gap-2 mb-3">
+        <i class="fas fa-leaf text-green-600"></i>
+        <span class="text-xs font-bold text-green-800 uppercase tracking-wider">Agricultural Advisory</span>
+      </div>
+      <div class="space-y-2 text-sm">
+        <div><span class="font-semibold">Symptoms:</span> ${
+          advisory.symptoms || "Monitor for unusual signs"
+        }</div>
+        <div><span class="font-semibold">Conditions:</span> ${
+          advisory.conditions || "Standard growing conditions"
+        }</div>
+        <div><span class="font-semibold">Impact:</span> ${
+          advisory.impact || "Monitor and report"
+        }</div>
+        <div class="bg-white rounded-lg p-2 mt-2"><span class="font-semibold">📋 Guide:</span> ${
+          advisory.guide || "Consult local extension office"
+        }</div>
+        ${
+          advisory.product
+            ? `<div class="mt-2"><span class="font-semibold">🧪 Recommended Product:</span> ${
+                advisory.product
+              } (₹${advisory.cost || 0}/acre)</div>`
+            : ""
         }
       </div>
+    </div>
+    `
+        : ""
+    }
 
-      <!-- Concerns & Actions -->
-      <div class="grid grid-cols-2 gap-3">
-        <div class="border border-red-200 rounded-lg p-3 bg-red-50">
-          <div class="text-xs font-bold text-red-700 mb-2">⚠️ Concerns</div>
-          <ul class="text-xs text-slate-700 space-y-1">
-            ${
-              threat.concerns
-                ? threat.concerns
-                    .slice(0, 3)
-                    .map((c) => `<li class="text-red-700">• ${c}</li>`)
-                    .join("")
-                : "<li>None identified</li>"
-            }
-          </ul>
-        </div>
-        <div class="border border-green-200 rounded-lg p-3 bg-green-50">
-          <div class="text-xs font-bold text-green-700 mb-2">✅ Actions</div>
-          <ul class="text-xs text-slate-700 space-y-1">
-            ${
-              threat.actions
-                ? threat.actions
-                    .slice(0, 3)
-                    .map((a) => `<li class="text-green-700">• ${a}</li>`)
-                    .join("")
-                : "<li>Monitor status</li>"
-            }
-          </ul>
-        </div>
+    <!-- Inventory Status -->
+    <div class="border border-slate-200 rounded-xl p-4">
+      <div class="flex items-center gap-2 mb-3">
+        <i class="fas fa-boxes text-slate-500"></i>
+        <span class="text-xs font-bold text-slate-600 uppercase tracking-wider">Inventory Status</span>
       </div>
-
       ${
-        threat.visit_scenarios
-          ? `
-      <!-- Visit Scenarios -->
-      <div class="border border-indigo-200 rounded-lg p-3 bg-indigo-50">
-        <div class="text-xs font-bold text-indigo-700 mb-2">📈 What-If Scenarios</div>
-        <div class="grid grid-cols-2 gap-2 text-xs">
-          <div class="bg-white rounded p-2">
-            <div class="text-slate-500">Current Risk</div>
-            <div class="text-xl font-bold text-red-600">${threat.visit_scenarios.current_risk}</div>
-          </div>
-          <div class="bg-white rounded p-2">
-            <div class="text-slate-500">Visit Tomorrow</div>
-            <div class="text-xl font-bold text-green-600">${threat.visit_scenarios.visit_tomorrow}</div>
-          </div>
-          <div class="bg-white rounded p-2">
-            <div class="text-slate-500">After 3 Days</div>
-            <div class="text-xl font-bold text-yellow-600">${threat.visit_scenarios.visit_3days}</div>
-          </div>
-          <div class="bg-white rounded p-2">
-            <div class="text-slate-500">If Ignored (7d)</div>
-            <div class="text-xl font-bold text-red-600">${threat.visit_scenarios.ignore_7days}</div>
-          </div>
+        threat.inventory && threat.inventory.length > 0
+          ? threat.inventory
+              .map(
+                (inv) => `
+        <div class="flex justify-between items-center py-2 border-b border-slate-100 last:border-0">
+          <span class="text-sm font-medium">${inv.product}</span>
+          <span class="badge ${
+            inv.status === "CRITICAL"
+              ? "badge-critical"
+              : inv.status === "LOW"
+              ? "badge-high"
+              : "badge-low"
+          }">${inv.qty} units</span>
         </div>
-      </div>
+        <div class="text-xs text-slate-500 mt-1">📊 ${inv.prediction}</div>
       `
-          : ""
+              )
+              .join("")
+          : "<div class='text-slate-500 text-sm'>No inventory data available</div>"
       }
     </div>
-  `;
 
-  const modalEl = document.getElementById("threatModal");
-  modalEl.classList.remove("hidden");
-  modalEl.scrollIntoView({ behavior: "smooth" });
-}
-
-function createThreatModal() {
-  const container = document.body;
-  const modal = document.createElement("div");
-  modal.id = "threatModal";
-  modal.className =
-    "fixed inset-0 z-50 bg-black/50 flex items-center justify-center overflow-auto hidden";
-  modal.innerHTML = `
-    <div class="bg-white rounded-2xl shadow-2xl max-w-2xl w-full mx-4 my-8 max-h-[90vh] overflow-y-auto">
-      <div class="sticky top-0 bg-white border-b border-slate-200 px-6 py-4 flex justify-between items-center">
-        <h2 class="text-xl font-bold text-slate-800">Threat Intelligence</h2>
-        <button onclick="closeThreatModal()" class="text-slate-400 hover:text-slate-600 text-2xl">&times;</button>
+    <!-- Concerns & Actions -->
+    <div class="grid grid-cols-2 gap-4">
+      <div class="border border-red-200 rounded-xl p-4 bg-red-50">
+        <div class="flex items-center gap-2 mb-2">
+          <i class="fas fa-exclamation-triangle text-red-500"></i>
+          <span class="text-xs font-bold text-red-700 uppercase tracking-wider">Concerns</span>
+        </div>
+        <ul class="text-xs text-red-700 space-y-1">
+          ${
+            threat.concerns
+              ? threat.concerns
+                  .slice(0, 3)
+                  .map(
+                    (c) =>
+                      `<li class="flex items-start gap-1"><span>•</span> ${c}</li>`
+                  )
+                  .join("")
+              : "<li>• No major concerns identified</li>"
+          }
+        </ul>
       </div>
-      <div id="threatModalContent" class="px-6 py-4"></div>
+      <div class="border border-green-200 rounded-xl p-4 bg-green-50">
+        <div class="flex items-center gap-2 mb-2">
+          <i class="fas fa-check-circle text-green-500"></i>
+          <span class="text-xs font-bold text-green-700 uppercase tracking-wider">Actions</span>
+        </div>
+        <ul class="text-xs text-green-700 space-y-1">
+          ${
+            threat.actions
+              ? threat.actions
+                  .slice(0, 3)
+                  .map(
+                    (a) =>
+                      `<li class="flex items-start gap-1"><span>✓</span> ${a}</li>`
+                  )
+                  .join("")
+              : "<li>• Continue monitoring</li>"
+          }
+        </ul>
+      </div>
     </div>
+
+    ${
+      threat.visit_scenarios
+        ? `
+    <!-- What-If Scenarios -->
+    <div class="border border-indigo-200 rounded-xl p-4 bg-indigo-50">
+      <div class="flex items-center gap-2 mb-3">
+        <i class="fas fa-chart-line text-indigo-500"></i>
+        <span class="text-xs font-bold text-indigo-700 uppercase tracking-wider">What-If Scenarios</span>
+      </div>
+      <div class="grid grid-cols-2 gap-3 text-center">
+        <div class="bg-white rounded-lg p-3"><div class="text-xs text-slate-500">Current Risk</div><div class="text-xl font-bold text-red-600">${threat.visit_scenarios.current_risk}</div></div>
+        <div class="bg-white rounded-lg p-3"><div class="text-xs text-slate-500">Visit Tomorrow</div><div class="text-xl font-bold text-green-600">${threat.visit_scenarios.visit_tomorrow}</div></div>
+        <div class="bg-white rounded-lg p-3"><div class="text-xs text-slate-500">After 3 Days</div><div class="text-xl font-bold text-yellow-600">${threat.visit_scenarios.visit_3days}</div></div>
+        <div class="bg-white rounded-lg p-3"><div class="text-xs text-slate-500">If Ignored (7d)</div><div class="text-xl font-bold text-red-600">${threat.visit_scenarios.ignore_7days}</div></div>
+      </div>
+    </div>
+    `
+        : ""
+    }
   `;
-  container.appendChild(modal);
+
+  // Show modal with animation
+  modal.classList.remove("hidden");
+  modal.scrollIntoView({ behavior: "smooth" });
+
+  // Add ESC key listener
+  document.addEventListener("keydown", function escHandler(e) {
+    if (e.key === "Escape") {
+      closeThreatModal();
+      document.removeEventListener("keydown", escHandler);
+    }
+  });
 }
 
 function closeThreatModal() {
@@ -1251,3 +1351,67 @@ window.showActions = showActions;
 window.exportToCSV = exportToCSV;
 window.loadThreatDetail = loadThreatDetail;
 window.closeThreatModal = closeThreatModal;
+
+// ============================================================================
+// TAB NAVIGATION
+// ============================================================================
+
+function switchTab(tabId) {
+  // Hide all tab contents
+  document.querySelectorAll(".tab-content").forEach((el) => {
+    el.classList.add("hidden");
+    el.classList.remove("block", "grid", "grid-cols-1", "lg:grid-cols-2");
+  });
+
+  // Reset all buttons
+  document.querySelectorAll(".tab-btn").forEach((btn) => {
+    btn.classList.remove(
+      "bg-teal-50",
+      "text-teal-700",
+      "border-teal-100",
+      "shadow-sm",
+      "font-semibold"
+    );
+    btn.classList.add(
+      "bg-transparent",
+      "text-slate-500",
+      "border-transparent",
+      "hover:bg-slate-50",
+      "hover:text-slate-700",
+      "font-medium"
+    );
+  });
+
+  // Show active tab
+  const activeTab = document.getElementById(tabId);
+  if (activeTab) {
+    activeTab.classList.remove("hidden");
+    if (tabId === "tab-routing") {
+      activeTab.classList.add("block");
+    } else {
+      activeTab.classList.add("grid", "grid-cols-1", "lg:grid-cols-2");
+    }
+  }
+
+  // Highlight active button
+  const activeBtn = document.getElementById("btn-" + tabId);
+  if (activeBtn) {
+    activeBtn.classList.remove(
+      "bg-transparent",
+      "text-slate-500",
+      "border-transparent",
+      "hover:bg-slate-50",
+      "hover:text-slate-700",
+      "font-medium"
+    );
+    activeBtn.classList.add(
+      "bg-teal-50",
+      "text-teal-700",
+      "border-teal-100",
+      "shadow-sm",
+      "font-semibold"
+    );
+  }
+}
+
+window.switchTab = switchTab;

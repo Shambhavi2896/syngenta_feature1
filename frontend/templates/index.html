@@ -31,8 +31,167 @@
       href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css"
     />
 
-    <!-- Custom Styles -->
-    <link rel="stylesheet" href="/static/css/style.css" />
+    <style>
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+      }
+
+      body {
+        background: linear-gradient(
+          135deg,
+          #f0fdf4 0%,
+          #f8fafc 50%,
+          #ccfbf1 100%
+        );
+        min-height: 100vh;
+      }
+
+      /* Custom Scrollbar */
+      ::-webkit-scrollbar {
+        width: 6px;
+        height: 6px;
+      }
+      ::-webkit-scrollbar-track {
+        background: #f1f1f1;
+        border-radius: 10px;
+      }
+      ::-webkit-scrollbar-thumb {
+        background: #cbd5e1;
+        border-radius: 10px;
+      }
+      ::-webkit-scrollbar-thumb:hover {
+        background: #94a3b8;
+      }
+
+      /* Tab Transitions */
+      .tab-content {
+        transition: opacity 0.3s ease-in-out, transform 0.3s ease-in-out;
+      }
+      .tab-content.hidden {
+        display: none;
+        opacity: 0;
+        transform: translateY(10px);
+      }
+      .tab-content:not(.hidden) {
+        display: block;
+        opacity: 1;
+        transform: translateY(0);
+      }
+
+      /* Map Container Fix */
+      #map {
+        height: 450px;
+        width: 100%;
+        border-radius: 1rem;
+        z-index: 1;
+      }
+
+      /* Progress Bar Styles */
+      .progress-bar {
+        background-color: #e2e8f0;
+        border-radius: 9999px;
+        overflow: hidden;
+      }
+      .progress-fill {
+        height: 6px;
+        border-radius: 9999px;
+        transition: width 0.5s ease;
+      }
+      .progress-critical {
+        background: linear-gradient(90deg, #ef4444, #dc2626);
+      }
+      .progress-high {
+        background: linear-gradient(90deg, #f97316, #ea580c);
+      }
+      .progress-medium {
+        background: linear-gradient(90deg, #eab308, #ca8a04);
+      }
+      .progress-low {
+        background: linear-gradient(90deg, #22c55e, #16a34a);
+      }
+
+      /* Badge Styles */
+      .badge-critical {
+        background: #fee2e2;
+        color: #991b1b;
+        border-left: 3px solid #ef4444;
+      }
+      .badge-high {
+        background: #ffedd5;
+        color: #9a3412;
+        border-left: 3px solid #f97316;
+      }
+      .badge-medium {
+        background: #fef9c3;
+        color: #854d0e;
+        border-left: 3px solid #eab308;
+      }
+      .badge-low {
+        background: #dcfce7;
+        color: #166534;
+        border-left: 3px solid #22c55e;
+      }
+
+      /* Score Chips */
+      .score-chip {
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
+        padding: 2px 8px;
+        border-radius: 20px;
+        font-size: 11px;
+        font-weight: 600;
+      }
+      .score-chip-bio {
+        background: #e0f2fe;
+        color: #0369a1;
+      }
+      .score-chip-inv {
+        background: #fef08a;
+        color: #854d0e;
+      }
+      .score-chip-dig {
+        background: #d9f99d;
+        color: #3f6212;
+      }
+      .score-chip-rec {
+        background: #fbcfe8;
+        color: #9d174d;
+      }
+      .score-chip-pos {
+        background: #d8b4fe;
+        color: #5b21b6;
+      }
+
+      /* Route Items */
+      .route-item {
+        background: white;
+        border-radius: 12px;
+        padding: 12px;
+        border: 1px solid #e2e8f0;
+        transition: all 0.2s ease;
+      }
+      .route-item:hover {
+        border-color: #cbd5e1;
+        box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.05);
+        transform: translateX(4px);
+      }
+      .route-number {
+        width: 28px;
+        height: 28px;
+        background: linear-gradient(135deg, #6366f1, #4f46e5);
+        color: white;
+        border-radius: 10px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-weight: bold;
+        font-size: 12px;
+        flex-shrink: 0;
+      }
+    </style>
 
     <script>
       tailwind.config = {
@@ -44,14 +203,9 @@
             },
             animation: {
               "pulse-slow": "pulse 3s cubic-bezier(0.4, 0, 0.6, 1) infinite",
-              "fade-in": "fadeIn 0.5s ease-out",
               "slide-up": "slideUp 0.3s ease-out",
             },
             keyframes: {
-              fadeIn: {
-                "0%": { opacity: "0" },
-                "100%": { opacity: "1" },
-              },
               slideUp: {
                 "0%": { transform: "translateY(10px)", opacity: "0" },
                 "100%": { transform: "translateY(0)", opacity: "1" },
@@ -62,65 +216,111 @@
       };
     </script>
   </head>
-  <body
-    class="bg-gradient-to-br from-slate-50 to-slate-100 font-sans antialiased"
-  >
-    <!-- ==================== TOP NAVIGATION BAR ==================== -->
-    <nav
-      class="fixed top-0 left-0 right-0 z-50 bg-white/90 backdrop-blur-md border-b border-slate-200 shadow-sm"
-    >
-      <div
-        class="max-w-[1600px] mx-auto px-4 sm:px-6 py-3 flex items-center justify-between"
-      >
-        <!-- Logo -->
-        <div class="flex items-center gap-3">
-          <div
-            class="w-10 h-10 rounded-xl bg-gradient-to-br from-emerald-500 to-teal-600 flex items-center justify-center shadow-lg"
-          >
-            <span class="text-white font-bold text-xl">K</span>
-          </div>
-          <div>
-            <h1 class="font-display font-bold text-xl text-slate-800">
-              KRITECH
-            </h1>
-            <p
-              class="text-[10px] uppercase tracking-wider text-slate-400 font-semibold"
-            >
-              Dynamic Prioritization Engine
-            </p>
-          </div>
-        </div>
 
-        <!-- Status Bar -->
-        <div class="flex items-center gap-4">
-          <div
-            class="hidden md:flex items-center gap-2 px-3 py-1.5 bg-emerald-50 rounded-full"
-          >
+  <body class="font-sans antialiased">
+    <!-- ==================== TOP NAVIGATION BAR (NOT FIXED) ==================== -->
+    <nav
+      class="bg-white/95 backdrop-blur-md border-b border-slate-200 shadow-sm sticky top-0 z-50"
+    >
+      <div class="max-w-[1600px] mx-auto px-4 sm:px-6 py-4">
+        <div
+          class="flex flex-col md:flex-row items-start md:items-center justify-between gap-4"
+        >
+          <!-- Logo Section -->
+          <div class="flex items-center gap-3">
             <div
-              class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"
-            ></div>
-            <span class="text-xs font-semibold text-emerald-700"
-              >AI Active</span
+              class="w-12 h-12 rounded-xl bg-gradient-to-br from-emerald-500 to-teal-600 flex items-center justify-center shadow-lg"
             >
+              <span class="text-white font-bold text-2xl">K</span>
+            </div>
+            <div>
+              <h1
+                class="font-display font-bold text-2xl text-slate-800 tracking-tight"
+              >
+                KRITECH
+              </h1>
+              <p
+                class="text-[10px] uppercase tracking-wider text-slate-400 font-semibold"
+              >
+                Dynamic Prioritization Engine
+              </p>
+            </div>
           </div>
-          <div class="flex items-center gap-2 text-sm text-slate-500">
-            <i class="fas fa-sync-alt text-xs"></i>
-            <span id="lastUpdated" class="text-xs">--:--:--</span>
-          </div>
-          <button
-            onclick="loadDashboard()"
-            class="px-3 py-1.5 text-sm font-medium text-slate-600 hover:text-slate-900 bg-slate-100 hover:bg-slate-200 rounded-lg transition"
+
+          <!-- Tab Navigation - Main Feature Toggle -->
+          <div
+            class="flex flex-wrap gap-2 bg-slate-100/80 p-1.5 rounded-xl border border-slate-200"
           >
-            <i class="fas fa-refresh mr-1"></i> Refresh
-          </button>
+            <button
+              onclick="switchTab('routing')"
+              id="tabBtn-routing"
+              class="tab-nav-btn px-4 py-2 rounded-lg text-sm font-semibold transition-all bg-white text-teal-700 shadow-sm border border-slate-200"
+            >
+              <i class="fas fa-route mr-2"></i> Operations
+            </button>
+            <button
+              onclick="switchTab('intelligence')"
+              id="tabBtn-intelligence"
+              class="tab-nav-btn px-4 py-2 rounded-lg text-sm font-semibold transition-all text-slate-500 hover:bg-white/50"
+            >
+              <i class="fas fa-brain mr-2"></i> Predictive AI
+            </button>
+            <button
+              onclick="switchTab('financial')"
+              id="tabBtn-financial"
+              class="tab-nav-btn px-4 py-2 rounded-lg text-sm font-semibold transition-all text-slate-500 hover:bg-white/50"
+            >
+              <i class="fas fa-chart-line mr-2"></i> Financial
+            </button>
+          </div>
+
+          <!-- Status Section -->
+          <div class="flex items-center gap-3">
+            <div
+              class="flex items-center gap-2 px-3 py-1.5 bg-emerald-50 rounded-full border border-emerald-100"
+            >
+              <div
+                class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"
+              ></div>
+              <span class="text-xs font-semibold text-emerald-700"
+                >AI Active</span
+              >
+            </div>
+            <div class="flex items-center gap-2 text-sm text-slate-500">
+              <i class="fas fa-sync-alt text-xs"></i>
+              <span id="lastUpdated" class="text-xs font-medium">--:--:--</span>
+            </div>
+            <button
+              onclick="loadDashboard()"
+              class="px-3 py-1.5 text-sm font-medium text-slate-600 hover:text-slate-900 bg-slate-100 hover:bg-slate-200 rounded-lg transition"
+            >
+              <i class="fas fa-refresh mr-1"></i> Refresh
+            </button>
+          </div>
         </div>
       </div>
     </nav>
 
+    <!-- ==================== GOVT PEST ALERTS TICKER ==================== -->
+    <div
+      class="bg-red-600 text-white text-xs font-semibold py-2 px-4 border-b border-red-700"
+    >
+      <div class="max-w-[1600px] mx-auto flex items-center gap-3">
+        <span
+          class="bg-white/20 px-2 py-0.5 rounded text-[10px] tracking-wider uppercase animate-pulse flex-shrink-0"
+        >
+          <i class="fas fa-broadcast-tower mr-1"></i> LIVE
+        </span>
+        <div id="govtAlertText" class="truncate flex-1">
+          Syncing with ICAR Govt Advisory...
+        </div>
+      </div>
+    </div>
+
     <!-- ==================== MAIN CONTAINER ==================== -->
-    <div class="max-w-[1600px] mx-auto px-4 sm:px-6 pt-20 pb-8">
+    <main class="max-w-[1600px] mx-auto px-4 sm:px-6 py-6">
       <!-- Error Toast -->
-      <div id="errorToast" class="fixed top-20 right-4 z-50 hidden">
+      <div id="errorToast" class="fixed top-24 right-4 z-50 hidden">
         <div
           class="bg-red-500 text-white px-4 py-3 rounded-lg shadow-lg flex items-center gap-3 animate-slide-up"
         >
@@ -133,7 +333,7 @@
       <!-- Loading Overlay -->
       <div
         id="loadingOverlay"
-        class="fixed inset-0 bg-black/20 z-40 flex items-center justify-center hidden"
+        class="fixed inset-0 bg-black/20 z-50 flex items-center justify-center hidden"
       >
         <div
           class="bg-white rounded-2xl p-6 shadow-xl flex flex-col items-center gap-3"
@@ -146,11 +346,11 @@
       </div>
 
       <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
-        <!-- ==================== LEFT SIDEBAR (3 cols) ==================== -->
-        <div class="lg:col-span-3 space-y-5">
+        <!-- ==================== LEFT SIDEBAR (3 cols) - ALWAYS VISIBLE ==================== -->
+        <aside class="lg:col-span-3 space-y-5">
           <!-- Rep Selection Card -->
           <div
-            class="bg-white rounded-2xl shadow-sm border border-slate-200 p-5 hover:shadow-md transition"
+            class="bg-white rounded-2xl shadow-sm border border-slate-200 p-5"
           >
             <label
               class="text-xs font-bold uppercase tracking-wider text-indigo-600 block mb-2"
@@ -160,7 +360,7 @@
             <select
               id="repSelect"
               onchange="loadDashboard()"
-              class="w-full px-4 py-2.5 rounded-xl border border-slate-200 text-sm focus:ring-2 focus:ring-emerald-500 focus:border-transparent transition"
+              class="w-full px-4 py-2.5 rounded-xl border border-slate-200 text-sm focus:ring-2 focus:ring-emerald-500 transition"
             >
               <option value="">Select Representative...</option>
             </select>
@@ -308,11 +508,11 @@
             </h3>
             <div id="tehsilDetailContent" class="space-y-2 text-sm"></div>
           </div>
-        </div>
+        </aside>
 
-        <!-- ==================== MAIN CONTENT (9 cols) ==================== -->
+        <!-- ==================== MAIN CONTENT AREA (9 cols) - TABBED ==================== -->
         <div class="lg:col-span-9 space-y-6">
-          <!-- Stats Row -->
+          <!-- Stats Row (Always Visible) -->
           <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
             <div
               class="bg-white rounded-2xl shadow-sm p-4 border-l-4 border-red-500"
@@ -359,7 +559,7 @@
             </div>
           </div>
 
-          <!-- Map Card -->
+          <!-- Map Card (Always Visible) -->
           <div
             class="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden"
           >
@@ -375,7 +575,7 @@
             <div id="map" class="w-full h-[400px] z-0"></div>
           </div>
 
-          <!-- Threats Table -->
+          <!-- Prioritized Tehsils Table (Always Visible) -->
           <div
             class="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden"
           >
@@ -414,9 +614,8 @@
             </div>
           </div>
 
-          <!-- Two Column Bottom Section -->
-          <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            <!-- Route Optimization -->
+          <!-- TAB 1: Operations & Routing -->
+          <div id="tab-routing" class="tab-content">
             <div
               class="bg-white rounded-2xl shadow-sm border border-slate-200 p-5"
             >
@@ -429,82 +628,251 @@
               </p>
               <div
                 id="routeList"
-                class="space-y-2 max-h-[400px] overflow-y-auto"
+                class="space-y-2 max-h-[400px] overflow-y-auto pr-2"
               ></div>
             </div>
+          </div>
 
-            <!-- ML Intelligence -->
-            <div
-              class="bg-white rounded-2xl shadow-sm border border-slate-200 p-5"
-            >
-              <h2 class="font-display font-bold text-slate-800 mb-3">
-                <i class="fas fa-brain text-purple-500 mr-2"></i> AI
-                Intelligence
-              </h2>
-              <div class="grid grid-cols-2 gap-4">
-                <div>
-                  <p class="text-xs text-slate-400 uppercase">
-                    ML Weights (Random Forest)
-                  </p>
-                  <div id="mlWeights" class="space-y-1 mt-2"></div>
-                </div>
-                <div>
-                  <canvas id="threatChart" height="150"></canvas>
+          <!-- TAB 2: Predictive AI -->
+          <div id="tab-intelligence" class="tab-content hidden">
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              <!-- ML Weights -->
+              <div
+                class="bg-white rounded-2xl shadow-sm border border-indigo-100 p-6"
+              >
+                <h3
+                  class="text-lg font-bold text-slate-800 mb-6 flex items-center"
+                >
+                  <div
+                    class="w-8 h-8 rounded-lg bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center mr-3"
+                  >
+                    <i class="fas fa-network-wired text-white text-xs"></i>
+                  </div>
+                  Engine Telemetry
+                </h3>
+                <div id="mlWeights" class="space-y-4"></div>
+                <div
+                  id="mlExplanation"
+                  class="mt-6 text-xs text-indigo-700 bg-indigo-50 p-4 rounded-xl"
+                ></div>
+              </div>
+
+              <!-- What-If Simulator -->
+              <div
+                class="bg-white rounded-2xl shadow-sm border border-blue-100 p-6"
+              >
+                <h3
+                  class="text-lg font-bold text-slate-800 mb-6 flex items-center"
+                >
+                  <div
+                    class="w-8 h-8 rounded-lg bg-gradient-to-br from-blue-500 to-cyan-500 flex items-center justify-center mr-3"
+                  >
+                    <i class="fas fa-code-branch text-white text-xs"></i>
+                  </div>
+                  What-If Analysis
+                </h3>
+                <p class="text-sm text-slate-500 mb-6">
+                  Select a tehsil from the table to see intervention impact.
+                </p>
+                <div
+                  id="whatIfContent"
+                  class="bg-slate-50 rounded-xl p-5 border border-slate-100 min-h-[200px] flex items-center justify-center"
+                >
+                  <div class="text-center">
+                    <div
+                      class="w-16 h-16 bg-blue-100 text-blue-500 rounded-full flex items-center justify-center mx-auto mb-3"
+                    >
+                      <i class="fas fa-satellite-dish text-2xl"></i>
+                    </div>
+                    <span class="text-sm font-semibold text-slate-400"
+                      >Select a tehsil to analyze</span
+                    >
+                  </div>
                 </div>
               </div>
+            </div>
+          </div>
+
+          <!-- TAB 3: Financial Impact -->
+          <div id="tab-financial" class="tab-content hidden">
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              <!-- Cost of Inaction -->
               <div
-                id="mlExplanation"
-                class="mt-3 text-xs text-slate-500 bg-slate-50 p-2 rounded-lg"
-              ></div>
-            </div>
+                class="bg-gradient-to-br from-red-500 to-rose-600 rounded-2xl p-1"
+              >
+                <div class="bg-white rounded-xl p-6 h-full">
+                  <h3
+                    class="text-lg font-bold text-slate-800 mb-2 flex items-center"
+                  >
+                    <div
+                      class="w-8 h-8 rounded-lg bg-red-100 flex items-center justify-center mr-3 text-red-600"
+                    >
+                      <i class="fas fa-exclamation-triangle"></i>
+                    </div>
+                    Cost of Inaction
+                  </h3>
+                  <p class="text-sm text-slate-500 mb-6">
+                    Projected loss if top priority is ignored for 14 days.
+                  </p>
+                  <div
+                    id="inactionContent"
+                    class="bg-red-50 rounded-xl p-6 border border-red-100 min-h-[150px] flex items-center justify-center"
+                  >
+                    <div class="text-center">
+                      <div
+                        class="w-16 h-16 bg-red-100 text-red-400 rounded-full flex items-center justify-center mx-auto mb-3"
+                      >
+                        <i class="fas fa-file-invoice-dollar text-2xl"></i>
+                      </div>
+                      <span class="text-sm font-semibold text-slate-400"
+                        >Select a tehsil to calculate</span
+                      >
+                    </div>
+                  </div>
+                </div>
+              </div>
 
-            <!-- Cost of Inaction -->
-            <div
-              class="bg-gradient-to-r from-red-50 to-rose-50 rounded-2xl border border-red-200 p-5"
-            >
-              <h2 class="font-display font-bold text-slate-800 mb-2">
-                <i class="fas fa-exclamation-triangle text-red-500 mr-2"></i>
-                Cost of Inaction
-              </h2>
-              <p class="text-xs text-slate-500 mb-3">
-                Projected loss if top priority is ignored for 14 days
-              </p>
-              <div id="inactionContent" class="space-y-2"></div>
-            </div>
-
-            <!-- What-If Analysis -->
-            <div
-              class="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-2xl border border-blue-200 p-5"
-            >
-              <h2 class="font-display font-bold text-slate-800 mb-2">
-                <i class="fas fa-chart-line text-blue-500 mr-2"></i> What If I
-                Visit Tomorrow?
-              </h2>
-              <p class="text-xs text-slate-500 mb-3">
-                Risk reduction projection
-              </p>
-              <div id="whatIfContent" class="space-y-2"></div>
-            </div>
-
-            <!-- Market Prices -->
-            <div
-              class="bg-white rounded-2xl shadow-sm border border-slate-200 p-5 lg:col-span-2"
-            >
-              <h2 class="font-display font-bold text-slate-800 mb-3">
-                <i class="fas fa-chart-simple text-emerald-500 mr-2"></i> Mandi
-                Market Prices
-              </h2>
+              <!-- Market Prices -->
               <div
-                id="marketPrices"
-                class="grid grid-cols-2 md:grid-cols-4 gap-3"
-              ></div>
+                class="bg-white rounded-2xl shadow-sm border border-emerald-100 p-6"
+              >
+                <h3
+                  class="text-lg font-bold text-slate-800 mb-6 flex items-center"
+                >
+                  <div
+                    class="w-8 h-8 rounded-lg bg-gradient-to-br from-emerald-400 to-teal-500 flex items-center justify-center mr-3"
+                  >
+                    <i class="fas fa-chart-line text-white text-xs"></i>
+                  </div>
+                  Live Commodity Markets
+                </h3>
+                <div
+                  id="marketPrices"
+                  class="grid grid-cols-2 sm:grid-cols-4 gap-3"
+                ></div>
+              </div>
             </div>
           </div>
         </div>
       </div>
-    </div>
+    </main>
 
-    <!-- JavaScript -->
     <script src="/static/js/main.js"></script>
+
+    <script>
+      // Tab switching function
+      function switchTab(tabName) {
+        // Hide all tab contents
+        document.querySelectorAll(".tab-content").forEach((tab) => {
+          tab.classList.add("hidden");
+        });
+
+        // Show selected tab
+        const selectedTab = document.getElementById(`tab-${tabName}`);
+        if (selectedTab) {
+          selectedTab.classList.remove("hidden");
+        }
+
+        // Update button styles
+        document.querySelectorAll(".tab-nav-btn").forEach((btn) => {
+          btn.classList.remove(
+            "bg-white",
+            "text-teal-700",
+            "shadow-sm",
+            "border",
+            "border-slate-200"
+          );
+          btn.classList.add("text-slate-500");
+        });
+
+        const activeBtn = document.getElementById(`tabBtn-${tabName}`);
+        if (activeBtn) {
+          activeBtn.classList.remove("text-slate-500");
+          activeBtn.classList.add(
+            "bg-white",
+            "text-teal-700",
+            "shadow-sm",
+            "border",
+            "border-slate-200"
+          );
+        }
+
+        // Save to localStorage
+        localStorage.setItem("activeTab", tabName);
+      }
+
+      // Load last active tab on page load
+      document.addEventListener("DOMContentLoaded", () => {
+        const savedTab = localStorage.getItem("activeTab") || "routing";
+        switchTab(savedTab);
+      });
+
+      // Make switchTab globally available
+      window.switchTab = switchTab;
+    </script>
+    <!-- Add this to your HTML, just before the closing body tag -->
+    <div
+      id="threatModal"
+      class="fixed inset-0 z-[9999] bg-black/60 backdrop-blur-sm flex items-center justify-center overflow-auto hidden transition-all duration-300"
+    >
+      <div
+        class="bg-white rounded-2xl shadow-2xl max-w-3xl w-full mx-4 my-8 max-h-[90vh] overflow-hidden flex flex-col animate-slide-up"
+      >
+        <!-- Modal Header -->
+        <div
+          class="sticky top-0 bg-white border-b border-slate-200 px-6 py-4 flex justify-between items-center"
+        >
+          <div class="flex items-center gap-3">
+            <div
+              class="w-10 h-10 rounded-xl bg-gradient-to-br from-emerald-500 to-teal-600 flex items-center justify-center shadow-md"
+            >
+              <i class="fas fa-shield-alt text-white text-sm"></i>
+            </div>
+            <div>
+              <h2 class="text-xl font-bold text-slate-800" id="modalTehsilName">
+                Threat Intelligence
+              </h2>
+              <p class="text-xs text-slate-400" id="modalDistrictName">
+                Loading...
+              </p>
+            </div>
+          </div>
+          <button
+            onclick="closeThreatModal()"
+            class="text-slate-400 hover:text-slate-600 hover:bg-slate-100 w-8 h-8 rounded-lg transition flex items-center justify-center"
+          >
+            <i class="fas fa-times text-lg"></i>
+          </button>
+        </div>
+
+        <!-- Modal Body (Scrollable) -->
+        <div
+          id="threatModalContent"
+          class="px-6 py-5 overflow-y-auto flex-1 space-y-5"
+        >
+          <!-- Content injected by JS -->
+          <div class="flex justify-center py-10">
+            <div
+              class="w-8 h-8 border-4 border-emerald-500 border-t-transparent rounded-full animate-spin"
+            ></div>
+          </div>
+        </div>
+
+        <!-- Modal Footer with Close Button -->
+        <div
+          class="sticky bottom-0 bg-slate-50 border-t border-slate-200 px-6 py-4 flex justify-between items-center"
+        >
+          <div class="text-xs text-slate-400">
+            <i class="fas fa-info-circle mr-1"></i> AI-generated intelligence
+          </div>
+          <button
+            onclick="closeThreatModal()"
+            class="px-5 py-2 bg-slate-200 hover:bg-slate-300 text-slate-700 font-semibold text-sm rounded-xl transition flex items-center gap-2"
+          >
+            <i class="fas fa-times-circle"></i> Close
+          </button>
+        </div>
+      </div>
+    </div>
   </body>
 </html>
