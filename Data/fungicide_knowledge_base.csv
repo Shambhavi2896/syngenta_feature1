@@ -1,0 +1,14 @@
+disease,recommended_product,dosage,urgency,treatment_window_days,cost_per_acre,efficacy_rating
+stripe_rust,Tilt 250 EC,500ml/acre,critical,3,450,0.92
+stripe_rust,Topik 15 WP,800g/acre,critical,3,320,0.85
+leaf_rust,Tilt 250 EC,500ml/acre,high,4,450,0.88
+leaf_rust,Topik 15 WP,800g/acre,high,4,320,0.81
+powdery_mildew,Sulfur WP,2000g/acre,medium,5,180,0.79
+powdery_mildew,Topik 15 WP,800g/acre,medium,5,320,0.75
+alternaria_blight,Score 250 EC,400ml/acre,critical,3,520,0.89
+white_rust,Score 250 EC,400ml/acre,high,4,520,0.86
+botrytis_gray_mold,Amistar 250 SC,600ml/acre,medium,5,580,0.82
+phytophthora_blight,Amistar 250 SC,600ml/acre,high,4,580,0.87
+bollworm,Lambda 5 EC,300ml/acre,critical,2,420,0.91
+pink_bollworm,Lambda 5 EC,300ml/acre,critical,2,420,0.90
+phomopsis_blight,Amistar 250 SC,600ml/acre,high,4,580,0.84

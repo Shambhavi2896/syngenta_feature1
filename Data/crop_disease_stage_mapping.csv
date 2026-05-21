@@ -1,0 +1,17 @@
+crop,stage,disease,vulnerability_score,days_to_critical,product_recommended
+wheat,tillering,stripe_rust,0.65,25,Tilt 250 EC
+wheat,flowering,stripe_rust,0.92,8,Tilt 250 EC
+wheat,grain_filling,stripe_rust,0.78,15,Tilt 250 EC
+wheat,flowering,leaf_rust,0.81,10,Tilt 250 EC
+wheat,flowering,powdery_mildew,0.58,12,Sulfur WP
+wheat,grain_filling,powdery_mildew,0.42,18,Sulfur WP
+mustard,flowering,alternaria_blight,0.88,6,Score 250 EC
+mustard,flowering,white_rust,0.75,9,Score 250 EC
+mustard,pod_formation,alternaria_blight,0.62,12,Score 250 EC
+chickpea,pod_formation,botrytis_gray_mold,0.71,7,Amistar 250 SC
+chickpea,flowering,phytophthora_blight,0.84,5,Amistar 250 SC
+chickpea,pod_formation,phytophthora_blight,0.76,8,Amistar 250 SC
+cotton,boll_formation,bollworm,0.88,4,Lambda 5 EC
+cotton,boll_formation,pink_bollworm,0.85,5,Lambda 5 EC
+lentil,pod_formation,phomopsis_blight,0.68,9,Amistar 250 SC
+lentil,flowering,phomopsis_blight,0.79,6,Amistar 250 SC

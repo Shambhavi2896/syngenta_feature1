@@ -1,0 +1,12 @@
+crop,disease_name,state,district,risk_level,outbreak_probability,confidence_score,advisory_date,recommended_product,severity_trend
+wheat,stripe_rust,Rajasthan,Bharatpur,HIGH,0.81,0.92,2026-03-21,Tilt 250 EC,increasing
+wheat,stripe_rust,Uttar Pradesh,Kanpur Nagar,CRITICAL,0.88,0.95,2026-03-21,Tilt 250 EC,increasing
+wheat,stripe_rust,Punjab,Patiala,HIGH,0.76,0.89,2026-03-21,Tilt 250 EC,increasing
+wheat,leaf_rust,Bihar,Patna,MEDIUM,0.58,0.71,2026-03-20,Tilt 250 EC,stable
+wheat,powdery_mildew,Haryana,Karnal,MEDIUM,0.52,0.68,2026-03-20,Sulfur WP,stable
+mustard,alternaria_blight,Rajasthan,Bikaner,HIGH,0.72,0.85,2026-03-19,Score 250 EC,increasing
+mustard,white_rust,Gujarat,Ahmedabad,MEDIUM,0.48,0.64,2026-03-18,Score 250 EC,stable
+chickpea,botrytis_gray_mold,Haryana,Sirsa,LOW,0.35,0.52,2026-03-18,Amistar 250 SC,stable
+chickpea,phytophthora_blight,Maharashtra,Amravati,MEDIUM,0.61,0.75,2026-03-20,Amistar 250 SC,increasing
+cotton,bollworm,Maharashtra,Nagpur,HIGH,0.74,0.88,2026-03-21,Lambda 5 EC,increasing
+lentil,phomopsis_blight,Bihar,Patna,MEDIUM,0.49,0.65,2026-03-19,Amistar 250 SC,stable
