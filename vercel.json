@@ -8,19 +8,36 @@
         "maxLambdaSize": "50mb",
         "runtime": "python3.11"
       }
+    },
+    {
+      "src": "frontend/static/**/*",
+      "use": "@vercel/static"
     }
   ],
   "routes": [
     {
       "src": "/static/(.*)",
-      "dest": "/static/$1"
+      "dest": "/frontend/static/$1",
+      "headers": {
+        "Cache-Control": "public, max-age=3600"
+      }
+    },
+    {
+      "src": "/api/(.*)",
+      "dest": "/api/index.py"
     },
     {
       "src": "/(.*)",
-      "dest": "api/index.py"
+      "dest": "/api/index.py"
     }
   ],
   "env": {
     "FLASK_ENV": "production"
+  },
+  "functions": {
+    "api/index.py": {
+      "memory": 1024,
+      "maxDuration": 30
+    }
   }
 }

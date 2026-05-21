@@ -41,6 +41,7 @@ def init():
         'reps': dm.ALL_REPS,
         'total_growers': len(dm.growers),
         'districts': districts,
+        'latest_data_date': dm.LATEST_DATA_DATE
     })
 
 @app.route('/api/warmup')
@@ -50,11 +51,11 @@ def warmup():
 
 @app.route('/api/dashboard/<rep_id>')
 def dashboard(rep_id):
-    sim_date_str = request.args.get('date', '2026-03-18')
+    sim_date_str = request.args.get('date', dm.LATEST_DATA_DATE)
     try:
         target_date = pd.Timestamp(sim_date_str).date()
     except:
-        target_date = pd.Timestamp('2026-03-18').date()
+        target_date = pd.Timestamp(dm.LATEST_DATA_DATE).date()
 
     state, district = dm.get_rep_info(rep_id)
     tehsils = dm.get_rep_tehsils(rep_id)
@@ -164,13 +165,13 @@ def simulate_pest():
 @app.route('/api/export')
 def export_priorities():
     rep_id = request.args.get('rep_id')
-    sim_date_str = request.args.get('date', '2026-03-18')
+    sim_date_str = request.args.get('date', dm.LATEST_DATA_DATE)
     if not rep_id:
         return jsonify({'status': 'error', 'message': 'Rep ID required.'}), 400
     try:
         target_date = pd.Timestamp(sim_date_str).date()
     except:
-        target_date = pd.Timestamp('2026-03-18').date()
+        target_date = pd.Timestamp(dm.LATEST_DATA_DATE).date()
 
     state, district = dm.get_rep_info(rep_id)
     tehsils = dm.get_rep_tehsils(rep_id)

@@ -34,6 +34,12 @@
     <link rel="stylesheet" href="/static/css/style.css?v=5" />
   </head>
   <body class="text-slate-800 antialiased">
+    <!-- Error Message Box -->
+    <div
+      id="errorMessage"
+      class="fixed top-4 left-4 right-4 z-[999] text-red-600 bg-red-50 border border-red-200 p-3 rounded-lg text-sm font-medium hidden"
+    ></div>
+
     <!-- Top Bar -->
     <div
       class="border-b border-slate-100 bg-white/75 backdrop-blur-md px-6 py-4 flex items-center justify-between sticky top-0 z-50 shadow-sm"
@@ -51,7 +57,7 @@
             KRITECH
           </h1>
           <p
-            class="text-[10px] text-slate-500 tracking-widest font-semibold uppercase"
+            class="text-sm text-slate-500 tracking-widest font-semibold uppercase"
           >
             Dynamic Prioritization & Field Force Intelligence
           </p>
@@ -60,12 +66,12 @@
       <div class="flex items-center gap-3">
         <span
           id="lastUpdated"
-          class="text-[9px] text-slate-400 font-medium hidden"
+          class="text-xs text-slate-400 font-medium hidden"
           >Updated: --</span
         >
         <button
           onclick="loadDashboard()"
-          class="text-[9px] text-slate-600 bg-slate-100/80 hover:bg-slate-200 px-3 py-1.5 rounded-full font-semibold border border-slate-200 transition"
+          class="text-xs text-slate-600 bg-slate-100/80 hover:bg-slate-200 px-3 py-1.5 rounded-full font-semibold border border-slate-200 transition"
         >
           Refresh with Live Weather
         </button>
@@ -96,7 +102,7 @@
       <div class="lg:col-span-1 space-y-5">
         <div class="glass rounded-2xl p-5 glow-teal">
           <label
-            class="text-[11px] text-indigo-600 uppercase tracking-widest font-bold block mb-2"
+            class="text-sm text-indigo-600 uppercase tracking-widest font-bold block mb-2"
             >Field Rep Login</label
           >
           <select
@@ -107,7 +113,7 @@
             <option value="">Loading...</option>
           </select>
           <label
-            class="text-[11px] text-indigo-600 uppercase tracking-widest font-bold block mb-2"
+            class="text-sm text-indigo-600 uppercase tracking-widest font-bold block mb-2"
             >Simulation Date</label
           >
           <input
@@ -123,10 +129,10 @@
           class="glass rounded-2xl p-5 border-l-4 border-red-500 bg-red-50/10"
         >
           <label
-            class="text-[11px] text-red-600 uppercase tracking-widest font-bold block mb-2"
+            class="text-sm text-red-600 uppercase tracking-widest font-bold block mb-2"
             >Simulate Outbreak Bulletin</label
           >
-          <p class="text-[10px] text-slate-500 mb-3 leading-relaxed">
+          <p class="text-sm text-slate-500 mb-3 leading-relaxed">
             Inject 40% pest risk boost for a district. Watch scores change in
             real-time.
           </p>
@@ -139,14 +145,14 @@
           <div class="flex gap-2">
             <button
               onclick="triggerPestSimulation()"
-              class="flex-1 px-3 py-2 bg-gradient-to-r from-red-500 to-rose-600 hover:from-red-600 hover:to-rose-700 text-white font-bold text-[10px] rounded-lg shadow-sm uppercase tracking-wider transition-all"
+              class="flex-1 px-3 py-2 bg-gradient-to-r from-red-500 to-rose-600 hover:from-red-600 hover:to-rose-700 text-white font-bold text-sm rounded-lg shadow-sm uppercase tracking-wider transition-all"
             >
               ⚠ Simulate
             </button>
             <button
               id="resetPestBtn"
               onclick="resetPestSimulation()"
-              class="hidden px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-600 font-bold text-[10px] rounded-lg border border-slate-200 uppercase tracking-wider transition-all"
+              class="hidden px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-600 font-bold text-sm rounded-lg border border-slate-200 uppercase tracking-wider transition-all"
             >
               Reset
             </button>
@@ -159,30 +165,30 @@
           class="glass rounded-2xl p-5 space-y-3 hidden fade-up"
         >
           <h3
-            class="text-[11px] text-slate-500 uppercase tracking-widest font-bold border-b border-indigo-50/50 pb-2"
+            class="text-sm text-slate-500 uppercase tracking-widest font-bold border-b border-indigo-50/50 pb-2"
           >
             Territory Intel
           </h3>
           <div>
-            <div class="text-[9px] text-slate-500 uppercase font-semibold">
+            <div class="text-xs text-slate-500 uppercase font-semibold">
               State
             </div>
             <div id="iState" class="font-bold text-slate-800 text-sm">-</div>
           </div>
           <div>
-            <div class="text-[9px] text-slate-500 uppercase font-semibold">
+            <div class="text-xs text-slate-500 uppercase font-semibold">
               District
             </div>
             <div id="iDistrict" class="font-bold text-slate-800 text-sm">-</div>
           </div>
           <div>
-            <div class="text-[9px] text-slate-500 uppercase font-semibold">
+            <div class="text-xs text-slate-500 uppercase font-semibold">
               Tehsils
             </div>
             <div id="iTehsils" class="font-bold text-slate-800 text-sm">-</div>
           </div>
           <div>
-            <div class="text-[9px] text-slate-500 uppercase font-semibold">
+            <div class="text-xs text-slate-500 uppercase font-semibold">
               Growers
             </div>
             <div id="iGrowers" class="font-bold text-slate-800 text-sm">-</div>
@@ -198,13 +204,13 @@
             class="flex justify-between items-center border-b border-indigo-50/50 pb-2"
           >
             <h3
-              class="text-[11px] text-slate-500 uppercase tracking-widest font-bold"
+              class="text-sm text-slate-500 uppercase tracking-widest font-bold"
             >
               Environment
             </h3>
             <button
               onclick="loadDashboard()"
-              class="text-[9px] text-teal-600 font-bold uppercase hover:text-teal-800 transition-colors"
+              class="text-xs text-teal-600 font-bold uppercase hover:text-teal-800 transition-colors"
             >
               ↻ Refresh
             </button>
@@ -265,20 +271,20 @@
           </div>
           <div
             id="weatherInterpretation"
-            class="weather-alert text-[10px] leading-relaxed hidden font-medium"
+            class="weather-alert text-sm leading-relaxed hidden font-medium"
           ></div>
           <div
             id="weatherForecast"
             class="bg-slate-50 rounded-2xl border border-slate-200 p-4 mt-4 hidden"
           >
             <div
-              class="text-[10px] uppercase tracking-widest text-slate-500 font-semibold mb-3"
+              class="text-sm uppercase tracking-widest text-slate-500 font-semibold mb-3"
             >
               3-Day Weather Risk Forecast
             </div>
             <div
               id="forecastList"
-              class="space-y-3 text-[11px] text-slate-700"
+              class="space-y-3 text-sm text-slate-700"
             ></div>
           </div>
           <div
@@ -286,13 +292,13 @@
             class="bg-rose-50/60 rounded-2xl border border-rose-100 p-4 mt-4 hidden"
           >
             <div
-              class="text-[10px] uppercase tracking-widest text-rose-600 font-semibold mb-2"
+              class="text-sm uppercase tracking-widest text-rose-600 font-semibold mb-2"
             >
               Live Pest Advisory
             </div>
             <div
               id="pestAdvisoryText"
-              class="text-[11px] text-slate-700 leading-relaxed"
+              class="text-sm text-slate-700 leading-relaxed"
             ></div>
           </div>
         </div>
@@ -303,7 +309,7 @@
           class="glass rounded-2xl p-5 space-y-3 hidden fade-up border-l-4 border-indigo-500"
         >
           <h3
-            class="text-[11px] text-indigo-600 uppercase tracking-widest font-bold border-b border-indigo-50/50 pb-2"
+            class="text-sm text-indigo-600 uppercase tracking-widest font-bold border-b border-indigo-50/50 pb-2"
           >
             Selected Tehsil Detail
           </h3>
@@ -324,7 +330,7 @@
               class="glass rounded-2xl p-5 border-l-4 border-red-500 bg-gradient-to-r from-red-50/10 to-transparent"
             >
               <div
-                class="text-[10px] text-slate-500 uppercase tracking-wider font-bold"
+                class="text-sm text-slate-500 uppercase tracking-wider font-bold"
               >
                 Critical Alerts
               </div>
@@ -336,14 +342,14 @@
               </div>
               <div
                 id="sCriticalSub"
-                class="text-[10px] text-slate-500 mt-1 hidden"
+                class="text-sm text-slate-500 mt-1 hidden"
               ></div>
             </div>
             <div
               class="glass rounded-2xl p-5 border-l-4 border-amber-500 bg-gradient-to-r from-amber-50/10 to-transparent"
             >
               <div
-                class="text-[10px] text-slate-500 uppercase tracking-wider font-bold"
+                class="text-sm text-slate-500 uppercase tracking-wider font-bold"
               >
                 High Alerts
               </div>
@@ -358,7 +364,7 @@
               class="glass rounded-2xl p-5 border-l-4 border-indigo-500 bg-gradient-to-r from-indigo-50/10 to-transparent"
             >
               <div
-                class="text-[10px] text-slate-500 uppercase tracking-wider font-bold"
+                class="text-sm text-slate-500 uppercase tracking-wider font-bold"
               >
                 Revenue at Risk
               </div>
@@ -373,7 +379,7 @@
               class="glass rounded-2xl p-5 border-l-4 border-teal-500 bg-gradient-to-r from-teal-50/10 to-transparent"
             >
               <div
-                class="text-[10px] text-slate-500 uppercase tracking-wider font-bold"
+                class="text-sm text-slate-500 uppercase tracking-wider font-bold"
               >
                 Stockout Alerts
               </div>
@@ -388,7 +394,7 @@
               class="glass rounded-2xl p-5 border-l-4 border-slate-500 bg-gradient-to-r from-slate-50/10 to-transparent"
             >
               <div
-                class="text-[10px] text-slate-500 uppercase tracking-wider font-bold"
+                class="text-sm text-slate-500 uppercase tracking-wider font-bold"
               >
                 AI Confidence
               </div>
@@ -415,12 +421,12 @@
                   <div class="flex items-center gap-2">
                     <button
                       onclick="exportPriorities()"
-                      class="text-[10px] font-bold text-teal-700 bg-teal-50 hover:bg-teal-600 hover:text-white border border-teal-200 px-3 py-1.5 rounded-lg shadow-sm transition-all"
+                      class="text-sm font-bold text-teal-700 bg-teal-50 hover:bg-teal-600 hover:text-white border border-teal-200 px-3 py-1.5 rounded-lg shadow-sm transition-all"
                     >
                       📥 Export CSV
                     </button>
                     <span
-                      class="text-[10px] text-slate-500 font-bold uppercase bg-slate-100 px-2.5 py-1.5 rounded-lg"
+                      class="text-sm text-slate-500 font-bold uppercase bg-slate-100 px-2.5 py-1.5 rounded-lg"
                       >Ranked</span
                     >
                   </div>
@@ -433,7 +439,7 @@
                   <table class="w-full text-sm">
                     <thead>
                       <tr
-                        class="text-slate-500 border-b border-indigo-50/80 text-[11px] uppercase tracking-wider"
+                        class="text-slate-500 border-b border-indigo-50/80 text-sm uppercase tracking-wider"
                       >
                         <th class="pb-3 text-left font-semibold">Tehsil</th>
                         <th class="pb-3 text-left font-semibold">
@@ -461,7 +467,7 @@
                     Signal Intelligence & AI Calibration
                   </h2>
                   <span
-                    class="px-3 py-1 rounded-full text-[10px] font-extrabold uppercase bg-indigo-50 text-indigo-700 border border-indigo-100"
+                    class="px-3 py-1 rounded-full text-sm font-extrabold uppercase bg-indigo-50 text-indigo-700 border border-indigo-100"
                     >RF Calibrated</span
                   >
                 </div>
@@ -477,18 +483,18 @@
                   >
                     <div>
                       <h4
-                        class="text-[10px] text-indigo-600 uppercase tracking-wider font-extrabold mb-1"
+                        class="text-sm text-indigo-600 uppercase tracking-wider font-extrabold mb-1"
                       >
                         Random Forest Weight Learning
                       </h4>
-                      <p class="text-[9px] text-slate-500 leading-relaxed mb-3">
+                      <p class="text-xs text-slate-500 leading-relaxed mb-3">
                         Trained on 500 historical visit outcomes.
                       </p>
                       <div class="space-y-2" id="mlWeightsBox"></div>
                     </div>
                     <div
                       id="mlNote"
-                      class="text-[9px] text-indigo-700 bg-indigo-50 border border-indigo-100 p-2 rounded-lg font-semibold leading-relaxed mt-2"
+                      class="text-xs text-indigo-700 bg-indigo-50 border border-indigo-100 p-2 rounded-lg font-semibold leading-relaxed mt-2"
                     ></div>
                   </div>
                 </div>
@@ -504,7 +510,7 @@
                 </h2>
                 <p
                   id="routeSubtitle"
-                  class="text-[11px] text-slate-500 mb-4 leading-relaxed"
+                  class="text-sm text-slate-500 mb-4 leading-relaxed"
                 >
                   TSP-optimized by urgency.
                 </p>
@@ -519,7 +525,7 @@
                 <h2 class="font-display text-lg font-bold text-slate-800 mb-1">
                   Cost of Inaction
                 </h2>
-                <p class="text-[11px] text-slate-500 mb-4">
+                <p class="text-sm text-slate-500 mb-4">
                   If top tehsil is ignored for 14 days:
                 </p>
                 <div id="inactionContent" class="space-y-2"></div>
@@ -533,7 +539,7 @@
                 <h2 class="font-display text-lg font-bold text-slate-800 mb-1">
                   What If I Visit Tomorrow?
                 </h2>
-                <p class="text-[11px] text-slate-500 mb-4">
+                <p class="text-sm text-slate-500 mb-4">
                   Risk projection for the top-priority tehsil:
                 </p>
                 <div id="whatIfContent" class="space-y-2"></div>

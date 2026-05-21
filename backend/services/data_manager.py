@@ -6,6 +6,7 @@ from datetime import timedelta
 
 DATA = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..', 'Data'))
 DATA_LOADED = False
+LATEST_DATA_DATE = None
 
 latest_inventory = pd.DataFrame()
 pos = pd.DataFrame()
@@ -40,7 +41,7 @@ def load_data():
     global latest_inventory, pos, growers, retailers, visit_logs, whatsapp
     global weather_csv, pest_csv, disease_map, fungicide_kb, crop_prices, geo_coords
     global pest_lookup, vuln_lookup, fung_lookup, weather_lookup, price_lookup
-    global rep_territory, ALL_REPS
+    global rep_territory, ALL_REPS, LATEST_DATA_DATE
 
     print("Loading large datasets via streaming...")
 
@@ -62,7 +63,13 @@ def load_data():
     if not latest_inventory.empty:
         latest_inventory['sku_qty'] = pd.to_numeric(latest_inventory['sku_qty'])
 
-    pos_cutoff = (pd.Timestamp('2026-03-18') - timedelta(days=30)).strftime('%Y-%m-%d')
+    # Compute the latest inventory date dynamically
+    if latest_inv_date:
+        LATEST_DATA_DATE = latest_inv_date
+    else:
+        LATEST_DATA_DATE = '2026-03-21'
+
+    pos_cutoff = (pd.Timestamp(LATEST_DATA_DATE) - timedelta(days=60)).strftime('%Y-%m-%d')
     pos_rows = []
     try:
         with open(os.path.join(DATA, 'retailer_pos.csv'), 'r', encoding='utf-8') as f:
@@ -153,6 +160,16 @@ def load_data():
 
     rep_territory = dict(zip(visit_logs['rep_id'], visit_logs['territory_id'])) if not visit_logs.empty else {}
     ALL_REPS = sorted(visit_logs['rep_id'].unique().tolist()) if not visit_logs.empty else []
+
+    # Refine LATEST_DATA_DATE from visit logs if available
+    if not visit_logs.empty:
+        latest_visit = visit_logs['visit_date'].max()
+        if pd.notna(latest_visit):
+            visit_date_str = latest_visit.strftime('%Y-%m-%d')
+            if LATEST_DATA_DATE is None or visit_date_str > LATEST_DATA_DATE:
+                LATEST_DATA_DATE = visit_date_str
+    if LATEST_DATA_DATE is None:
+        LATEST_DATA_DATE = '2026-03-21'
 
 
 def ensure_data_loaded():
