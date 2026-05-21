@@ -6,32 +6,75 @@ let currentData = null;
 const todayDate = new Date().toISOString().slice(0, 10);
 
 window.addEventListener("DOMContentLoaded", () => {
-  document.getElementById("simDate").value = todayDate;
   loadInit();
 });
 
 async function loadInit() {
   try {
     const response = await fetch("/api/init");
+    if (!response.ok) {
+      throw new Error(`API error: ${response.status} ${response.statusText}`);
+    }
     const data = await response.json();
+    if (!data || !data.reps) {
+      throw new Error("Invalid response: missing reps data");
+    }
     const repSelect = document.getElementById("repSelect");
     repSelect.innerHTML = '<option value="">Select Rep ID...</option>';
-    data.reps.forEach((r) => {
-      repSelect.innerHTML += `<option value="${r}">${r}</option>`;
-    });
+    if (data.reps.length === 0) {
+      repSelect.innerHTML +=
+        '<option value="" disabled>No reps available</option>';
+    } else {
+      data.reps.forEach((r) => {
+        repSelect.innerHTML += `<option value="${r}">${r}</option>`;
+      });
+    }
     const districtSelect = document.getElementById("simDistrict");
     districtSelect.innerHTML = '<option value="">Select district...</option>';
-    if (data.districts && data.districts.length) {
+    if (data.districts && data.districts.length > 0) {
       data.districts.forEach((district) => {
         districtSelect.innerHTML += `<option value="${district}">${district}</option>`;
       });
     } else {
       districtSelect.innerHTML =
-        '<option value="">No districts available</option>';
+        '<option value="" disabled>No districts available</option>';
     }
+
+    if (data.latest_data_date) {
+      document.getElementById("simDate").value = data.latest_data_date;
+    } else {
+      document.getElementById("simDate").value = todayDate;
+    }
+
+    showErrorMessage("", "success");
   } catch (error) {
     console.error("Initialization failed", error);
+    showErrorMessage(`Failed to load: ${error.message}`, "error");
+    document.getElementById("repSelect").innerHTML =
+      '<option value="" disabled>Error loading reps</option>';
+    document.getElementById("simDistrict").innerHTML =
+      '<option value="" disabled>Error loading districts</option>';
   }
+}
+
+function showErrorMessage(msg, type) {
+  const errorBox = document.getElementById("errorMessage");
+  if (!errorBox) return;
+  if (!msg) {
+    errorBox.classList.add("hidden");
+    return;
+  }
+  errorBox.textContent = msg;
+  if (type === "error") {
+    errorBox.className =
+      "text-red-600 bg-red-50 border border-red-200 p-3 rounded-lg text-sm font-medium";
+  } else {
+    errorBox.className =
+      "text-green-600 bg-green-50 border border-green-200 p-3 rounded-lg text-sm font-medium";
+  }
+  errorBox.classList.remove("hidden");
+  if (type !== "error")
+    setTimeout(() => errorBox.classList.add("hidden"), 3000);
 }
 
 async function fetchLiveWeather(lat, lng) {
@@ -162,13 +205,13 @@ function renderForecast(liveWeather) {
         : riskLabel === "Moderate"
         ? "text-amber-600"
         : "text-emerald-600";
-    return `<div class="flex justify-between items-center gap-3"><div><div class="text-[11px] font-semibold text-slate-800">${new Date(
+    return `<div class="flex justify-between items-center gap-3"><div><div class="text-sm font-semibold text-slate-800">${new Date(
       date
     ).toLocaleDateString("en-IN", {
       weekday: "short",
       day: "numeric",
       month: "short",
-    })}</div><div class="text-[10px] text-slate-500">${minTemp}° / ${maxTemp}° · ${rain}mm</div></div><span class="text-[10px] font-bold ${color}">${riskLabel}</span></div>`;
+    })}</div><div class="text-sm text-slate-500">${minTemp}° / ${maxTemp}° · ${rain}mm</div></div><span class="text-sm font-bold ${color}">${riskLabel}</span></div>`;
   });
   list.innerHTML = items.join("");
   forecastContainer.classList.remove("hidden");
@@ -177,6 +220,7 @@ function renderForecast(liveWeather) {
 function renderPestAdvisory(d) {
   const advisoryBox = document.getElementById("pestAdvisory");
   const advisoryText = document.getElementById("pestAdvisoryText");
+  if (!advisoryBox || !advisoryText) return;
   if (!d?.district_diseases?.length) {
     advisoryBox.classList.add("hidden");
     advisoryText.textContent = "";
@@ -192,10 +236,8 @@ function renderPestAdvisory(d) {
       : humidity >= 70
       ? "elevated"
       : "moderate";
-  advisoryText.innerHTML = `The top regional advisory is <strong>${topDisease.disease.replace(
-    /_/g,
-    " "
-  )}</strong> for <strong>${topDisease.crop}</strong> (${
+  const diseaseName = topDisease?.disease ? topDisease.disease.replace(/_/g, " ") : "Unknown Disease";
+  advisoryText.innerHTML = `The top regional advisory is <strong>${diseaseName}</strong> for <strong>${topDisease.crop}</strong> (${
     topDisease.risk_level
   }). Environmental conditions are <strong>${envSignal}</strong> for disease spread. Prioritize scouting and protective action in the next 24 hours.`;
   advisoryBox.classList.remove("hidden");
@@ -213,29 +255,40 @@ setInterval(() => {
 function loadDashboard() {
   const rep = document.getElementById("repSelect").value;
   const date = document.getElementById("simDate").value;
-  if (!rep) return;
+  if (!rep) {
+    showErrorMessage("Please select a Field Rep", "error");
+    return;
+  }
   document.getElementById("dashboard").classList.add("hidden");
   document.getElementById("sideInfo").classList.add("hidden");
   document.getElementById("sideWeather").classList.add("hidden");
   document.getElementById("tehsilDetail").classList.add("hidden");
   document.getElementById("loader").classList.remove("hidden");
+  showErrorMessage("", "success");
   fetch(`/api/dashboard/${rep}?date=${date}`)
-    .then((r) => r.json())
+    .then((r) => {
+      if (!r.ok) throw new Error(`HTTP ${r.status}: ${r.statusText}`);
+      return r.json();
+    })
     .then((d) => {
+      if (!d) throw new Error("Empty response from server");
       document.getElementById("loader").classList.add("hidden");
       currentData = d;
       render(d);
       if (d.lat && d.lng) {
         fetchLiveWeather(d.lat, d.lng).then(updateLiveWeather);
       }
+      showErrorMessage("", "success");
     })
     .catch((e) => {
       document.getElementById("loader").classList.add("hidden");
-      console.error(e);
+      console.error("Dashboard load error:", e);
+      showErrorMessage(`Failed to load dashboard: ${e.message}`, "error");
     });
 }
 
 function animateValue(obj, start, end, duration, prefix = "", suffix = "") {
+  if (!obj) return;
   let ts = null;
   const step = (t) => {
     if (!ts) ts = t;
@@ -326,7 +379,8 @@ function render(d) {
   else animateValue(document.getElementById("sRevenue"), 0, rev, 1200, "₹");
 
   const aiConfidence = computeAIConfidence(d);
-  document.getElementById("sAIConfidence").textContent = `${aiConfidence}%`;
+  const sAIConfidence = document.getElementById("sAIConfidence");
+  if (sAIConfidence) sAIConfidence.textContent = `${aiConfidence}%`;
 
   fetchMLWeights();
 
@@ -359,20 +413,20 @@ function render(d) {
       dw = (sb.dig / total) * 100 || 0,
       rw = (sb.rec / total) * 100 || 0,
       pw = (sb.pos / total) * 100 || 0;
-    const breakdownBar = `<div class="score-breakdown-bar w-24" title="Bio:${sb.bio} Inv:${sb.inv} Dig:${sb.dig} Rec:${sb.rec} POS:${sb.pos}">
+    const breakdownBar = `<div class="score-breakdown-bar w-24 flex" title="Bio:${sb.bio} Inv:${sb.inv} Dig:${sb.dig} Rec:${sb.rec} POS:${sb.pos}">
             <div style="width:${bw}%" class="bg-emerald-500"></div>
             <div style="width:${iw}%" class="bg-amber-500"></div>
             <div style="width:${dw}%" class="bg-indigo-500"></div>
             <div style="width:${rw}%" class="bg-sky-500"></div>
             <div style="width:${pw}%" class="bg-rose-400"></div>
-        </div><span class="font-display font-bold text-slate-800 text-sm">${t.heat_score}</span>`;
+        </div><span class="font-display font-bold text-slate-800 text-sm ml-2">${t.heat_score}</span>`;
 
     tbody.innerHTML += `<tr class="hover:bg-indigo-50/10 transition-colors ${rc} cursor-pointer" onclick="showTehsilDetail('${t.tehsil}')">
             <td class="py-3 font-semibold text-slate-800 text-xs">${t.tehsil}</td>
             <td class="py-3"><div class="flex items-center gap-2">${breakdownBar}</div></td>
-            <td class="py-3"><span class="px-2 py-0.5 rounded-full text-[10px] font-bold ${bc}">${t.threat_level}</span></td>
-            <td class="py-3 text-slate-600 text-[11px]">${t.dominant_crop} / ${t.dominant_stage}</td>
-            <td class="py-3 text-[11px] max-w-[300px] leading-relaxed text-indigo-900 font-medium">${t.explanation}</td>
+            <td class="py-3"><span class="px-2 py-0.5 rounded-full text-sm font-bold ${bc}">${t.threat_level}</span></td>
+            <td class="py-3 text-slate-600 text-sm">${t.dominant_crop} / ${t.dominant_stage}</td>
+            <td class="py-3 text-sm max-w-[300px] leading-relaxed text-indigo-900 font-medium">${t.explanation}</td>
         </tr>`;
 
     if (t.lat && t.lng) {
@@ -413,11 +467,11 @@ function render(d) {
   if (d.monitoring_only) {
     rs.textContent =
       "No urgent priorities today. Tehsils for monitoring this week:";
-    rs.className = "text-[11px] text-amber-600 font-semibold mb-4";
+    rs.className = "text-sm text-amber-600 font-semibold mb-4";
   } else {
     rs.textContent =
       "TSP-optimized by biological vulnerability, inventory, and recency.";
-    rs.className = "text-[11px] text-slate-500 mb-4 leading-relaxed";
+    rs.className = "text-sm text-slate-500 mb-4 leading-relaxed";
   }
   if (!d.route.length) {
     rb.innerHTML =
@@ -443,17 +497,17 @@ function render(d) {
       }</span><span class="font-display font-bold text-xs bg-slate-50 border border-slate-100 px-1.5 py-0.5 rounded ${tc}">${
         s.heat_score
       }</span></div>
-                    <div class="text-[10px] text-indigo-600 font-bold uppercase mt-1">${
+                    <div class="text-sm text-indigo-600 font-bold uppercase mt-1">${
                       s.est_time_hours
                     }h (${s.retailers_count} retailers) · Last visit: ${
         s.days_since_visit
       }d ago</div>
-                    <div class="text-[11px] text-slate-600 mt-1">${s.why_visit
+                    <div class="text-sm text-slate-600 mt-1">${s.why_visit
                       .map((w) => "• " + w)
                       .join("<br>")}</div>
                     ${
                       s.actions.length
-                        ? `<div class="text-[10px] text-teal-700 bg-teal-50/70 border border-teal-100/50 px-2 py-1 rounded-lg mt-1.5 font-bold inline-flex items-center gap-1"><span class="w-1 h-1 rounded-full bg-teal-500"></span>${s.actions[0]}</div>`
+                        ? `<div class="text-sm text-teal-700 bg-teal-50/70 border border-teal-100/50 px-2 py-1 rounded-lg mt-1.5 font-bold inline-flex items-center gap-1"><span class="w-1 h-1 rounded-full bg-teal-500"></span>${s.actions[0]}</div>`
                         : ""
                     }
                 </div></div>`;
@@ -475,7 +529,7 @@ function render(d) {
         <div class="flex justify-between py-2 border-b border-indigo-50/50"><span class="text-slate-600 text-sm">Stockout In</span><span class="font-bold text-amber-600">${
           c.days_to_stockout
         }d</span></div>
-        <div class="flex justify-between py-2"><span class="text-slate-600 text-sm">Churn Risk</span><span class="font-bold px-2 py-0.5 rounded text-[11px] ${
+        <div class="flex justify-between py-2"><span class="text-slate-600 text-sm">Churn Risk</span><span class="font-bold px-2 py-0.5 rounded text-sm ${
           c.churn_risk === "CRITICAL"
             ? "badge-critical"
             : c.churn_risk === "HIGH"
@@ -483,7 +537,7 @@ function render(d) {
             : "badge-medium"
         }">${c.churn_risk}</span></div>`;
     if (c.baseline_message)
-      ic.innerHTML += `<div class="text-[10px] text-amber-700 bg-amber-50 border border-amber-100 p-2 rounded-lg mt-2 font-medium">${c.baseline_message}</div>`;
+      ic.innerHTML += `<div class="text-sm text-amber-700 bg-amber-50 border border-amber-100 p-2 rounded-lg mt-2 font-medium">${c.baseline_message}</div>`;
   }
 
   // What-If (Feature D)
@@ -491,7 +545,7 @@ function render(d) {
     const vs = d.threats[0].visit_scenarios;
     const wc = document.getElementById("whatIfContent");
     wc.innerHTML = `
-        <div class="text-[11px] font-bold text-slate-700 mb-2">${d.threats[0].tehsil}</div>
+        <div class="text-sm font-bold text-slate-700 mb-2">${d.threats[0].tehsil}</div>
         <div class="flex justify-between py-1.5 border-b border-indigo-50"><span class="text-slate-600 text-xs">Current risk</span><span class="font-bold text-red-500 text-sm">${vs.current_risk}%</span></div>
         <div class="flex justify-between py-1.5 border-b border-indigo-50"><span class="text-slate-600 text-xs">If visit tomorrow</span><span class="font-bold text-emerald-600 text-sm">${vs.visit_tomorrow}% ↓</span></div>
         <div class="flex justify-between py-1.5 border-b border-indigo-50"><span class="text-slate-600 text-xs">If visit in 3 days</span><span class="font-bold text-amber-600 text-sm">${vs.visit_3days}%</span></div>
@@ -506,14 +560,14 @@ function render(d) {
   const diseases = d.district_diseases || [];
   if (diseases.length) {
     ig.innerHTML += `<div class="bg-red-50/30 border border-red-100 rounded-xl p-3 shadow-sm">
-            <h4 class="text-[10px] text-slate-500 uppercase font-bold mb-2">District Disease Risk</h4>
+            <h4 class="text-sm text-slate-500 uppercase font-bold mb-2">District Disease Risk</h4>
             ${diseases
               .map(
                 (dd) =>
                   `<div class="text-sm font-bold text-red-500">${dd.disease.replace(
                     /_/g,
                     " "
-                  )} <span class="text-[10px] font-medium text-slate-500">(${
+                  )} <span class="text-sm font-medium text-slate-500">(${
                     dd.crop
                   }, ${dd.risk_level}, ${Math.round(
                     dd.probability * 100
@@ -522,7 +576,7 @@ function render(d) {
               .join("")}
             ${
               d.threats[0]?.disease_context
-                ? `<div class="text-[10px] text-slate-600 mt-2 italic">${d.threats[0].disease_context}</div>`
+                ? `<div class="text-sm text-slate-600 mt-2 italic">${d.threats[0].disease_context}</div>`
                 : ""
             }
         </div>`;
@@ -530,20 +584,20 @@ function render(d) {
 
   // Campaign (Bug 4)
   ig.innerHTML += `<div class="bg-indigo-50/30 border border-indigo-100 rounded-xl p-3 shadow-sm">
-        <h4 class="text-[10px] text-slate-500 uppercase font-bold mb-2">Digital Engagement</h4>
+        <h4 class="text-sm text-slate-500 uppercase font-bold mb-2">Digital Engagement</h4>
         <div class="grid grid-cols-3 gap-2 text-center">
-            <div><div class="font-display text-lg font-extrabold text-indigo-600">${d.campaign.open_rate}%</div><div class="text-[9px] text-slate-500 font-semibold">Open Rate</div></div>
-            <div><div class="font-display text-lg font-extrabold text-teal-600">${d.campaign.click_rate}%</div><div class="text-[9px] text-slate-500 font-semibold">Click Rate</div></div>
-            <div><div class="font-display text-lg font-extrabold text-amber-600">${d.campaign.cvr}%</div><div class="text-[9px] text-slate-500 font-semibold">CVR</div></div>
+            <div><div class="font-display text-lg font-extrabold text-indigo-600">${d.campaign.open_rate}%</div><div class="text-xs text-slate-500 font-semibold">Open Rate</div></div>
+            <div><div class="font-display text-lg font-extrabold text-teal-600">${d.campaign.click_rate}%</div><div class="text-xs text-slate-500 font-semibold">Click Rate</div></div>
+            <div><div class="font-display text-lg font-extrabold text-amber-600">${d.campaign.cvr}%</div><div class="text-xs text-slate-500 font-semibold">CVR</div></div>
         </div>
-        <div class="text-[10px] text-slate-500 mt-2">${d.campaign.delivered} delivered · ${d.campaign.opened} opened · ${d.campaign.clicked} clicked</div>
+        <div class="text-sm text-slate-500 mt-2">${d.campaign.delivered} delivered · ${d.campaign.opened} opened · ${d.campaign.clicked} clicked</div>
     </div>`;
 
   // Inventory (Bug 6)
   const allInv = d.threats.flatMap((t) => t.inventory);
   if (allInv.length) {
     ig.innerHTML += `<div class="bg-amber-50/30 border border-amber-100 rounded-xl p-3 shadow-sm">
-            <h4 class="text-[10px] text-slate-500 uppercase font-bold mb-2">Inventory Status</h4>
+            <h4 class="text-sm text-slate-500 uppercase font-bold mb-2">Inventory Status</h4>
             ${allInv
               .slice(0, 5)
               .map((i) => {
@@ -555,8 +609,8 @@ function render(d) {
                     : i.status === "MEDIUM"
                     ? "text-indigo-600 bg-indigo-50"
                     : "text-emerald-600 bg-emerald-50";
-                return `<div class="flex justify-between items-center py-1"><span class="text-xs text-slate-700 font-semibold">${i.product}</span><span class="text-[10px] font-bold px-1.5 py-0.5 rounded ${sc}">${i.status} (${i.qty})</span></div>
-                <div class="text-[9px] text-slate-500 mb-1">${i.prediction}</div>`;
+                return `<div class="flex justify-between items-center py-1"><span class="text-xs text-slate-700 font-semibold">${i.product}</span><span class="text-sm font-bold px-1.5 py-0.5 rounded ${sc}">${i.status} (${i.qty})</span></div>
+                <div class="text-xs text-slate-500 mb-1">${i.prediction}</div>`;
               })
               .join("")}
         </div>`;
@@ -646,32 +700,32 @@ function showTehsilDetail(tehsilName) {
   box.classList.remove("hidden");
   let html = `<div class="text-sm font-bold text-slate-800 mb-2">${
     t.tehsil
-  } <span class="text-[10px] font-medium ${
+  } <span class="text-sm font-medium ${
     t.threat_level === "CRITICAL"
       ? "text-red-500"
       : t.threat_level === "HIGH"
       ? "text-amber-600"
       : "text-teal-600"
   }">(${t.threat_level})</span></div>`;
-  html += `<div class="text-[10px] text-slate-600 mb-2">${t.explanation}</div>`;
+  html += `<div class="text-sm text-slate-600 mb-2">${t.explanation}</div>`;
   // Score breakdown
   const sb = t.score_breakdown || {};
   html += `<div class="space-y-1 mb-3">
-        <div class="flex justify-between text-[9px]"><span class="text-emerald-700 font-semibold">Bio Window</span><span>${sb.bio}</span></div>
-        <div class="flex justify-between text-[9px]"><span class="text-amber-700 font-semibold">Inventory</span><span>${sb.inv}</span></div>
-        <div class="flex justify-between text-[9px]"><span class="text-indigo-700 font-semibold">Digital</span><span>${sb.dig}</span></div>
-        <div class="flex justify-between text-[9px]"><span class="text-sky-700 font-semibold">Recency</span><span>${sb.rec}</span></div>
-        <div class="flex justify-between text-[9px]"><span class="text-rose-700 font-semibold">POS</span><span>${sb.pos}</span></div>
+        <div class="flex justify-between text-xs"><span class="text-emerald-700 font-semibold">Bio Window</span><span>${sb.bio}</span></div>
+        <div class="flex justify-between text-xs"><span class="text-amber-700 font-semibold">Inventory</span><span>${sb.inv}</span></div>
+        <div class="flex justify-between text-xs"><span class="text-indigo-700 font-semibold">Digital</span><span>${sb.dig}</span></div>
+        <div class="flex justify-between text-xs"><span class="text-sky-700 font-semibold">Recency</span><span>${sb.rec}</span></div>
+        <div class="flex justify-between text-xs"><span class="text-rose-700 font-semibold">POS</span><span>${sb.pos}</span></div>
     </div>`;
-  html += `<div class="text-[9px] text-slate-500">Last visit: <strong>${t.days_since_visit}d ago</strong> · Growers: ${t.num_growers} · Acres: ${t.total_acres}</div>`;
+  html += `<div class="text-xs text-slate-500">Last visit: <strong>${t.days_since_visit}d ago</strong> · Growers: ${t.num_growers} · Acres: ${t.total_acres}</div>`;
   if (t.next_action) {
-    html += `<div class="text-[10px] text-slate-600 mt-2">Next best action: <strong>${t.next_action}</strong></div>`;
+    html += `<div class="text-sm text-slate-600 mt-2">Next best action: <strong>${t.next_action}</strong></div>`;
   }
   // Why not critical (Feature A)
   if (t.why_not_critical && t.why_not_critical.length) {
-    html += `<div class="why-not-critical mt-2"><div class="text-[9px] font-bold text-emerald-700 uppercase mb-1">Why Not Critical</div>`;
+    html += `<div class="why-not-critical mt-2"><div class="text-xs font-bold text-emerald-700 uppercase mb-1">Why Not Critical</div>`;
     t.why_not_critical.forEach((r) => {
-      html += `<div class="text-[10px] text-slate-600">• ${r}</div>`;
+      html += `<div class="text-sm text-slate-600">• ${r}</div>`;
     });
     html += `</div>`;
   }
@@ -680,9 +734,12 @@ function showTehsilDetail(tehsilName) {
 
 function fetchMLWeights() {
   fetch("/api/ml-weights")
-    .then((r) => r.json())
+    .then((r) => {
+      if (!r.ok) throw new Error(`ML weights failed: ${r.status}`);
+      return r.json();
+    })
     .then((data) => {
-      if (data.status !== "success") return;
+      if (!data || data.status !== "success") return;
       const box = document.getElementById("mlWeightsBox");
       box.innerHTML = "";
       const labels = {
@@ -702,7 +759,7 @@ function fetchMLWeights() {
       for (const [k, v] of Object.entries(data.weights)) {
         const dv = data.defaults[k];
         box.innerHTML += `<div>
-                <div class="flex justify-between text-[9px] font-bold text-slate-700"><span>${
+                <div class="flex justify-between text-xs font-bold text-slate-700"><span>${
                   labels[k]
                 }</span><span>${(v * 100).toFixed(
           0
@@ -716,30 +773,45 @@ function fetchMLWeights() {
       }
       document.getElementById("mlNote").textContent = data.note || "";
     })
-    .catch((e) => console.error("ML weights error", e));
+    .catch((e) => {
+      console.warn("ML weights fetch failed, using defaults", e);
+    });
 }
 
 function triggerPestSimulation() {
   const dist = document.getElementById("simDistrict").value;
+  if (!dist) {
+    showErrorMessage("Please select a district", "error");
+    return;
+  }
   fetch("/api/simulate-pest", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ district: dist }),
   })
-    .then((r) => r.json())
+    .then((r) => {
+      if (!r.ok) throw new Error(`Simulation failed: ${r.status}`);
+      return r.json();
+    })
     .then((data) => {
+      if (!data) throw new Error("Empty response");
       if (data.status === "success") {
         document.getElementById("resetPestBtn").classList.remove("hidden");
         const clock = document.getElementById("clockDisplay");
         clock.textContent = "⚠ OUTBREAK ACTIVE";
         clock.className =
           "text-xs font-bold text-red-500 bg-red-100 px-3 py-1.5 rounded-full shadow-inner animate-pulse";
+        showErrorMessage("Pest outbreak simulation active", "success");
         loadDashboard();
         setTimeout(() => {
           clock.className =
             "text-xs font-bold text-slate-700 bg-slate-100/80 px-3 py-1.5 rounded-full shadow-inner";
         }, 5000);
       }
+    })
+    .catch((e) => {
+      console.error("Pest simulation error:", e);
+      showErrorMessage(`Simulation failed: ${e.message}`, "error");
     });
 }
 
@@ -749,12 +821,21 @@ function resetPestSimulation() {
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ reset: true }),
   })
-    .then((r) => r.json())
+    .then((r) => {
+      if (!r.ok) throw new Error(`Reset failed: ${r.status}`);
+      return r.json();
+    })
     .then((data) => {
+      if (!data) throw new Error("Empty response");
       if (data.status === "success") {
         document.getElementById("resetPestBtn").classList.add("hidden");
+        showErrorMessage("Pest simulation reset", "success");
         loadDashboard();
       }
+    })
+    .catch((e) => {
+      console.error("Pest reset error:", e);
+      showErrorMessage(`Reset failed: ${e.message}`, "error");
     });
 }
 
