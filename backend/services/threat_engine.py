@@ -486,19 +486,19 @@ def get_weather_interpretation(weather_detail: Dict) -> str:
     if h > 80 and 22 < t < 30:
         parts.append(f"⚠️ HIGH RISK: Humidity ({h:.0f}%) and temperature ({t:.0f}°C) are ideal for fungal disease proliferation.")
     elif h > 75:
-        parts.append(f"📈 ELEVATED: Humidity at {h:.0f}% is approaching disease-favorable levels.")
+        parts.append(f"ELEVATED: Humidity at {h:.0f}% is approaching disease-favorable levels.")
     elif h > 65:
-        parts.append(f"⚡ MODERATE: Humidity {h:.0f}% with temperature {t:.0f}°C — monitor for changes.")
+        parts.append(f"MODERATE: Humidity {h:.0f}% with temperature {t:.0f}°C — monitor for changes.")
     else:
-        parts.append(f"✅ Humidity {h:.0f}% and temperature {t:.0f}°C are within normal, low-risk range.")
+        parts.append(f"Humidity {h:.0f}% and temperature {t:.0f}°C are within normal, low-risk range.")
     
     # Rainfall impact
     if r > 10:
-        parts.append(f"🌧️ Heavy rainfall ({r:.0f}mm) significantly increases leaf wetness and spore spread risk.")
+        parts.append(f"Heavy rainfall ({r:.0f}mm) significantly increases leaf wetness and spore spread risk.")
     elif r > 5:
-        parts.append(f"💧 Recent rainfall ({r:.0f}mm) increasing leaf wetness duration.")
+        parts.append(f"Recent rainfall ({r:.0f}mm) increasing leaf wetness duration.")
     elif r > 0:
-        parts.append(f"☔ Light rainfall ({r:.1f}mm) — minimal impact.")
+        parts.append(f"Light rainfall ({r:.1f}mm) — minimal impact.")
     
     # Forecast
     if fh > 80:
@@ -969,7 +969,7 @@ def compute_tehsil_threat(tehsil: str, district: str, target_date) -> Optional[D
     disease_code = district_disease.lower().replace(' ', '_')
     bio_advisory = advisory_dict.get(disease_code, {
         'symptoms': "Monitor leaves and stems for unusual spotting, color changes, or mold growth.",
-        'conditions': "Warm temperature and elevated humidity, which generally favor pathogen activity.",
+        'conditions': "Warm temperature & elevated humidity, which generally favor pathogen activity.",
         'impact': "General loss of leaf function and compromised grain yield potential.",
         'guide': "Scout fields weekly. If disease signs appear, consult standard fungicide application guidelines."
     })
