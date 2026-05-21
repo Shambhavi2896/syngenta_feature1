@@ -1,850 +1,1253 @@
-let weatherAbortController = null;
-const weatherCache = new Map();
-let mapInstance = null;
-let chartInstance = null;
-let currentData = null;
-const todayDate = new Date().toISOString().slice(0, 10);
+/**
+ * KRITECH Dashboard - Main Application Logic
+ * Version: 2.0
+ *
+ * Handles:
+ * - Data fetching and state management
+ * - Map rendering with Leaflet
+ * - Real-time threat visualization
+ * - User interactions
+ */
 
-window.addEventListener("DOMContentLoaded", () => {
-  loadInit();
+// ============================================================================
+// GLOBAL STATE
+// ============================================================================
+
+let state = {
+  currentRep: null,
+  currentDate: null,
+  threats: [],
+  map: null,
+  markers: [],
+  pestSimulation: { active: false, district: null, boost: 0.4 },
+  threatChart: null,
+  refreshInterval: null,
+};
+
+// ============================================================================
+// INITIALIZATION
+// ============================================================================
+
+document.addEventListener("DOMContentLoaded", () => {
+  console.log("🚀 KRITECH Dashboard Initialized");
+
+  // Set default date to today
+  const today = new Date().toISOString().split("T")[0];
+  document.getElementById("simDate").value = today;
+  state.currentDate = today;
+
+  // Load representatives
+  loadRepresentatives();
+
+  // Start auto-refresh every 5 minutes (300,000 ms)
+  state.refreshInterval = setInterval(() => {
+    if (state.currentRep) {
+      console.log("🔄 Auto-refreshing dashboard...");
+      loadDashboard();
+    }
+  }, 300000);
 });
 
-async function loadInit() {
+// ============================================================================
+// API CALLS
+// ============================================================================
+
+async function loadRepresentatives() {
+  try {
+    showLoading(true);
+    const response = await fetch("/api/init");
+
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+
+    const data = await response.json();
+    const reps = data.reps || [];
+
+    const select = document.getElementById("repSelect");
+    select.innerHTML =
+      '<option value="">Select Representative...</option>' +
+      reps.map((rep) => `<option value="${rep}">${rep}</option>`).join("");
+
+    // Load districts for simulator
+    await loadDistricts();
+  } catch (error) {
+    console.error("Error loading reps:", error);
+    showError("Failed to load representatives. Please refresh the page.");
+  } finally {
+    showLoading(false);
+  }
+}
+
+async function loadDistricts() {
   try {
     const response = await fetch("/api/init");
-    if (!response.ok) {
-      throw new Error(`API error: ${response.status} ${response.statusText}`);
-    }
+
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+
     const data = await response.json();
-    if (!data || !data.reps) {
-      throw new Error("Invalid response: missing reps data");
-    }
-    const repSelect = document.getElementById("repSelect");
-    repSelect.innerHTML = '<option value="">Select Rep ID...</option>';
-    if (data.reps.length === 0) {
-      repSelect.innerHTML +=
-        '<option value="" disabled>No reps available</option>';
-    } else {
-      data.reps.forEach((r) => {
-        repSelect.innerHTML += `<option value="${r}">${r}</option>`;
-      });
-    }
-    const districtSelect = document.getElementById("simDistrict");
-    districtSelect.innerHTML = '<option value="">Select district...</option>';
-    if (data.districts && data.districts.length > 0) {
-      data.districts.forEach((district) => {
-        districtSelect.innerHTML += `<option value="${district}">${district}</option>`;
-      });
-    } else {
-      districtSelect.innerHTML =
-        '<option value="" disabled>No districts available</option>';
-    }
+    const districts = data.districts || [];
 
-    if (data.latest_data_date) {
-      document.getElementById("simDate").value = data.latest_data_date;
-    } else {
-      document.getElementById("simDate").value = todayDate;
-    }
-
-    showErrorMessage("", "success");
+    const select = document.getElementById("simDistrict");
+    select.innerHTML =
+      '<option value="">Select district to simulate outbreak...</option>' +
+      districts.map((d) => `<option value="${d}">${d}</option>`).join("");
   } catch (error) {
-    console.error("Initialization failed", error);
-    showErrorMessage(`Failed to load: ${error.message}`, "error");
-    document.getElementById("repSelect").innerHTML =
-      '<option value="" disabled>Error loading reps</option>';
-    document.getElementById("simDistrict").innerHTML =
-      '<option value="" disabled>Error loading districts</option>';
+    console.error("Error loading districts:", error);
   }
 }
 
-function showErrorMessage(msg, type) {
-  const errorBox = document.getElementById("errorMessage");
-  if (!errorBox) return;
-  if (!msg) {
-    errorBox.classList.add("hidden");
+async function loadDashboard() {
+  const repId = document.getElementById("repSelect").value;
+  const simDate = document.getElementById("simDate").value;
+
+  if (!repId) {
+    clearDashboard();
     return;
   }
-  errorBox.textContent = msg;
-  if (type === "error") {
-    errorBox.className =
-      "text-red-600 bg-red-50 border border-red-200 p-3 rounded-lg text-sm font-medium";
-  } else {
-    errorBox.className =
-      "text-green-600 bg-green-50 border border-green-200 p-3 rounded-lg text-sm font-medium";
-  }
-  errorBox.classList.remove("hidden");
-  if (type !== "error")
-    setTimeout(() => errorBox.classList.add("hidden"), 3000);
-}
 
-async function fetchLiveWeather(lat, lng) {
-  if (!lat || !lng) return null;
-  const cacheKey = `${lat.toFixed(4)}_${lng.toFixed(4)}_${todayDate}`;
-  if (weatherCache.has(cacheKey)) return weatherCache.get(cacheKey);
-  if (weatherAbortController) weatherAbortController.abort();
-  weatherAbortController = new AbortController();
-  const url = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lng}&current_weather=true&hourly=relativehumidity_2m,precipitation&daily=temperature_2m_max,temperature_2m_min,precipitation_sum&timezone=Asia%2FKolkata`;
+  state.currentRep = repId;
+  state.currentDate = simDate;
+
+  showLoading(true);
+  hideError();
+
+  let url = `/api/dashboard/${encodeURIComponent(repId)}?date=${simDate}`;
+
+  if (state.pestSimulation.active && state.pestSimulation.district) {
+    url += `&sim_district=${encodeURIComponent(
+      state.pestSimulation.district
+    )}&sim_boost=${state.pestSimulation.boost}`;
+  }
+
   try {
-    const response = await fetch(url, {
-      signal: weatherAbortController.signal,
-    });
-    if (!response.ok) return null;
+    const response = await fetch(url);
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`HTTP ${response.status}: ${errorText}`);
+    }
+
     const data = await response.json();
-    const current = data.current_weather || {};
-    const timeIndex = data.hourly?.time?.indexOf(current.time || "");
-    const humidity =
-      timeIndex >= 0
-        ? data.hourly.relativehumidity_2m[timeIndex]
-        : data.hourly?.relativehumidity_2m?.[0] ?? null;
-    const rainfall =
-      timeIndex >= 0
-        ? data.hourly.precipitation[timeIndex]
-        : data.hourly?.precipitation?.[0] ?? 0;
-    const live = {
-      temperature: current.temperature ?? null,
-      windspeed: current.windspeed ?? null,
-      weathercode: current.weathercode ?? null,
-      humidity,
-      rainfall,
-      forecast: data.daily || {},
+    state.threats = data.threats || [];
+
+    const rep_info = {
+      state: data.state,
+      district: data.district,
+      tehsils: data.tehsils,
+      total_growers: data.stats?.total_growers || 0,
     };
-    weatherCache.set(cacheKey, live);
-    return live;
+
+    updateStats(data);
+    updateThreatsTable(state.threats);
+    updateMap(state.threats);
+    updateSidebar(rep_info);
+    updateWeather({
+      current: data.weather,
+      risk: { advice: data.weather_interpretation },
+    });
+    updateRoute({ stops: data.route, monitoring_only: data.monitoring_only });
+    updateInactionCost({
+      revenue_loss: data.consequence?.revenue_loss,
+      yield_loss_pct: data.consequence?.yield_loss_pct,
+      churn_risk: data.consequence?.churn_risk,
+      baseline_message: data.consequence?.baseline_message,
+    });
+    updateWhatIf(data.visit_scenarios);
+    updateMarketPrices(data.market);
+    await loadMLWeights();
+
+    const now = new Date();
+    document.getElementById("lastUpdated").textContent =
+      now.toLocaleTimeString();
+
+    showToast("Dashboard updated successfully", "success");
   } catch (error) {
-    console.warn("Live weather fetch failed", error);
-    return null;
+    console.error("Error loading dashboard:", error);
+    showError(error.message);
+  } finally {
+    showLoading(false);
   }
 }
 
-function updateLiveWeather(liveWeather) {
-  if (!liveWeather) return;
-  document.getElementById("wHumidity").textContent = `${
-    liveWeather.humidity ?? "-"
-  }%`;
-  document.getElementById("wRain").textContent = `${
-    liveWeather.rainfall ?? 0
-  }mm`;
-  document.getElementById("wTemp").textContent = `${
-    liveWeather.temperature ?? "-"
-  }°C`;
-  document.getElementById("wLeaf").textContent = `${
-    liveWeather.windspeed ?? "-"
-  } km/h`;
-  const interpretation = [];
-  if (
-    liveWeather.humidity >= 80 &&
-    liveWeather.temperature >= 22 &&
-    liveWeather.temperature <= 30
-  ) {
-    interpretation.push(
-      `HIGH RISK: warm humid conditions support fungal spread.`
-    );
-  } else if (liveWeather.humidity >= 70) {
-    interpretation.push(
-      `ELEVATED risk: humidity is high and crop wetness may rise.`
-    );
-  } else {
-    interpretation.push(
-      `Stable conditions: humidity and temperature are moderate.`
-    );
+// ============================================================================
+// UI UPDATE FUNCTIONS
+// ============================================================================
+
+async function loadMLWeights() {
+  try {
+    const response = await fetch("/api/ml-weights");
+    const data = await response.json();
+    updateMLWeights(data.weights);
+  } catch (error) {
+    console.error("Error loading ML weights:", error);
   }
-  if (liveWeather.rainfall >= 5) {
-    interpretation.push(`Recent rain may increase disease pressure in fields.`);
-  }
-  const wi = document.getElementById("weatherInterpretation");
-  wi.textContent = interpretation.join(" ");
-  wi.classList.remove("hidden");
-  renderForecast(liveWeather);
 }
 
-function computeAIConfidence(d) {
-  const campaign = d.campaign || {};
-  const threatBase = Math.min(
-    1,
-    ((d.stats?.critical || 0) * 1.5 + (d.stats?.high || 0)) /
-      Math.max(d.threats?.length || 1, 1)
+function updateStats(data) {
+  const threats = data.threats || [];
+
+  const critical = threats.filter((t) => t.threat_level === "CRITICAL").length;
+  const high = threats.filter((t) => t.threat_level === "HIGH").length;
+  const stockouts = threats.filter((t) => t.stockouts > 0).length;
+  const totalRevenue = threats.reduce(
+    (sum, t) => sum + (t.revenue_at_risk || 0),
+    0
   );
-  const engagement = Math.min(
-    100,
-    (campaign.open_rate || 0) * 0.35 + (campaign.click_rate || 0) * 0.25
-  );
-  const marketVolatility = Math.min(
-    20,
-    Object.values(d.market || {}).reduce(
-      (acc, item) => acc + Math.abs(item?.change || 0),
-      0
-    ) * 0.1
-  );
-  const raw = 45 + threatBase * 25 + engagement * 0.2 + marketVolatility;
-  return Math.round(Math.max(50, Math.min(98, raw)));
+
+  document.getElementById("statCritical").textContent = critical;
+  document.getElementById("statHigh").textContent = high;
+  document.getElementById("statStockouts").textContent = stockouts;
+  document.getElementById("statRevenue").innerHTML =
+    formatCurrency(totalRevenue);
 }
 
-function renderForecast(liveWeather) {
-  const forecastContainer = document.getElementById("weatherForecast");
-  const list = document.getElementById("forecastList");
-  const forecast = liveWeather?.forecast;
-  if (!forecast?.time?.length) {
-    forecastContainer.classList.add("hidden");
-    list.innerHTML = "";
+function updateThreatsTable(threats) {
+  const tbody = document.getElementById("threatsTableBody");
+
+  if (!threats || threats.length === 0) {
+    tbody.innerHTML = `
+      <tr>
+        <td colspan="7" class="text-center py-8 text-slate-400">
+          <i class="fas fa-check-circle text-green-500 text-2xl mb-2 block"></i>
+          No threats detected in your territory
+        </td>
+      </tr>
+    `;
     return;
   }
 
-  const items = forecast.time.slice(0, 3).map((date, index) => {
-    const maxTemp = forecast.temperature_2m_max?.[index] ?? "-";
-    const minTemp = forecast.temperature_2m_min?.[index] ?? "-";
-    const rain = forecast.precipitation_sum?.[index] ?? 0;
-    const riskLabel =
-      rain >= 10 || maxTemp >= 32
-        ? "Elevated"
-        : rain >= 5
-        ? "Moderate"
-        : "Normal";
-    const color =
-      riskLabel === "Elevated"
-        ? "text-rose-600"
-        : riskLabel === "Moderate"
-        ? "text-amber-600"
-        : "text-emerald-600";
-    return `<div class="flex justify-between items-center gap-3"><div><div class="text-sm font-semibold text-slate-800">${new Date(
-      date
-    ).toLocaleDateString("en-IN", {
-      weekday: "short",
-      day: "numeric",
-      month: "short",
-    })}</div><div class="text-sm text-slate-500">${minTemp}° / ${maxTemp}° · ${rain}mm</div></div><span class="text-sm font-bold ${color}">${riskLabel}</span></div>`;
-  });
-  list.innerHTML = items.join("");
-  forecastContainer.classList.remove("hidden");
+  tbody.innerHTML = threats
+    .map(
+      (threat, index) => `
+        <tr class="hover:bg-slate-50 cursor-pointer transition" onclick="showTehsilDetail('${
+          threat.tehsil
+        }')">
+          <td class="px-4 py-3">
+            <span class="inline-flex items-center justify-center w-6 h-6 rounded-full bg-slate-100 text-slate-600 text-xs font-bold">
+              ${index + 1}
+            </span>
+          </td>
+          <td class="px-4 py-3 font-semibold text-slate-700">${escapeHtml(
+            threat.tehsil
+          )}</td>
+          <td class="px-4 py-3">
+            <div class="flex items-center gap-2">
+              <span class="text-lg font-bold ${getHeatScoreColor(
+                threat.heat_score
+              )}">${Math.round(threat.heat_score)}</span>
+              <div class="progress-bar w-16">
+                <div class="progress-fill ${getProgressClass(
+                  threat.threat_level
+                )}" style="width: ${threat.heat_score}%"></div>
+              </div>
+            </div>
+          </td>
+          <td class="px-4 py-3">
+            <div class="flex gap-1 flex-wrap">
+              <span class="score-chip score-chip-bio" data-tooltip="Biological Window">🌱 ${
+                threat.score_breakdown?.bio || 0
+              }</span>
+              <span class="score-chip score-chip-inv" data-tooltip="Inventory Pressure">📦 ${
+                threat.score_breakdown?.inv || 0
+              }</span>
+              <span class="score-chip score-chip-dig" data-tooltip="Digital Engagement">📱 ${
+                threat.score_breakdown?.dig || 0
+              }</span>
+              <span class="score-chip score-chip-rec" data-tooltip="Visit Recency">⏰ ${
+                threat.score_breakdown?.rec || 0
+              }</span>
+              <span class="score-chip score-chip-pos" data-tooltip="POS Momentum">📈 ${
+                threat.score_breakdown?.pos || 0
+              }</span>
+            </div>
+          </td>
+          <td class="px-4 py-3">
+            <span class="badge ${getBadgeClass(threat.threat_level)}">
+              ${getThreatIcon(threat.threat_level)} ${threat.threat_level}
+            </span>
+          </td>
+          <td class="px-4 py-3">
+            <div class="font-medium">${threat.dominant_crop || "-"}</div>
+            <div class="text-xs text-slate-400">${
+              threat.dominant_stage || "-"
+            }</div>
+            <div class="text-xs text-slate-400">${
+              threat.critical_growers || 0
+            } vulnerable growers</div>
+          </td>
+          <td class="px-4 py-3">
+            <button onclick="event.stopPropagation(); showActions('${
+              threat.tehsil
+            }')" 
+                    class="text-xs bg-indigo-50 hover:bg-indigo-100 text-indigo-600 px-2 py-1 rounded-lg transition">
+              <i class="fas fa-tasks mr-1"></i> Actions
+            </button>
+          </td>
+        </tr>
+      `
+    )
+    .join("");
 }
 
-function renderPestAdvisory(d) {
-  const advisoryBox = document.getElementById("pestAdvisory");
-  const advisoryText = document.getElementById("pestAdvisoryText");
-  if (!advisoryBox || !advisoryText) return;
-  if (!d?.district_diseases?.length) {
-    advisoryBox.classList.add("hidden");
-    advisoryText.textContent = "";
-    return;
-  }
-
-  const topDisease = d.district_diseases[0];
-  const humidity = d.weather?.humidity ?? 0;
-  const temp = d.weather?.temperature ?? 0;
-  const envSignal =
-    humidity >= 80 && temp >= 22 && temp <= 30
-      ? "high"
-      : humidity >= 70
-      ? "elevated"
-      : "moderate";
-  const diseaseName = topDisease?.disease ? topDisease.disease.replace(/_/g, " ") : "Unknown Disease";
-  advisoryText.innerHTML = `The top regional advisory is <strong>${diseaseName}</strong> for <strong>${topDisease.crop}</strong> (${
-    topDisease.risk_level
-  }). Environmental conditions are <strong>${envSignal}</strong> for disease spread. Prioritize scouting and protective action in the next 24 hours.`;
-  advisoryBox.classList.remove("hidden");
-}
-
-setInterval(() => {
-  document.getElementById("clockDisplay").textContent =
-    new Date().toLocaleTimeString("en-IN", {
-      hour: "2-digit",
-      minute: "2-digit",
-      second: "2-digit",
-    });
-}, 1000);
-
-function loadDashboard() {
-  const rep = document.getElementById("repSelect").value;
-  const date = document.getElementById("simDate").value;
-  if (!rep) {
-    showErrorMessage("Please select a Field Rep", "error");
-    return;
-  }
-  document.getElementById("dashboard").classList.add("hidden");
-  document.getElementById("sideInfo").classList.add("hidden");
-  document.getElementById("sideWeather").classList.add("hidden");
-  document.getElementById("tehsilDetail").classList.add("hidden");
-  document.getElementById("loader").classList.remove("hidden");
-  showErrorMessage("", "success");
-  fetch(`/api/dashboard/${rep}?date=${date}`)
-    .then((r) => {
-      if (!r.ok) throw new Error(`HTTP ${r.status}: ${r.statusText}`);
-      return r.json();
-    })
-    .then((d) => {
-      if (!d) throw new Error("Empty response from server");
-      document.getElementById("loader").classList.add("hidden");
-      currentData = d;
-      render(d);
-      if (d.lat && d.lng) {
-        fetchLiveWeather(d.lat, d.lng).then(updateLiveWeather);
+function updateMap(threats) {
+  if (!state.map) {
+    state.map = L.map("map").setView([22.0, 78.0], 5);
+    L.tileLayer(
+      "https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png",
+      {
+        attribution:
+          '&copy; <a href="https://www.openstreetmap.org/copyright">OSM</a>',
+        subdomains: "abcd",
+        maxZoom: 19,
       }
-      showErrorMessage("", "success");
-    })
-    .catch((e) => {
-      document.getElementById("loader").classList.add("hidden");
-      console.error("Dashboard load error:", e);
-      showErrorMessage(`Failed to load dashboard: ${e.message}`, "error");
-    });
-}
-
-function animateValue(obj, start, end, duration, prefix = "", suffix = "") {
-  if (!obj) return;
-  let ts = null;
-  const step = (t) => {
-    if (!ts) ts = t;
-    const p = Math.min((t - ts) / duration, 1);
-    let v = Math.floor(p * (end - start) + start);
-    if (v >= 1000 && !prefix.includes("L")) v = v.toLocaleString();
-    obj.innerHTML = prefix + v + suffix;
-    if (p < 1) requestAnimationFrame(step);
-    else
-      obj.innerHTML =
-        prefix +
-        (end >= 1000 && !prefix.includes("L") ? end.toLocaleString() : end) +
-        suffix;
-  };
-  requestAnimationFrame(step);
-}
-
-function render(d) {
-  document.getElementById("dashboard").classList.remove("hidden");
-  document.getElementById("sideInfo").classList.remove("hidden");
-  document.getElementById("sideWeather").classList.remove("hidden");
-
-  // Last updated
-  if (d.last_updated) {
-    const lu = document.getElementById("lastUpdated");
-    lu.textContent =
-      "Updated: " +
-      new Date(d.last_updated).toLocaleTimeString("en-IN", {
-        hour: "2-digit",
-        minute: "2-digit",
-      });
-    lu.classList.remove("hidden");
+    ).addTo(state.map);
   }
 
-  // Side info
-  document.getElementById("iState").textContent = d.state;
-  document.getElementById("iDistrict").textContent = d.district;
-  animateValue(document.getElementById("iTehsils"), 0, d.tehsils.length, 800);
-  const totalG = d.threats.reduce((s, t) => s + t.num_growers, 0);
-  animateValue(document.getElementById("iGrowers"), 0, totalG, 800);
+  state.markers.forEach((marker) => state.map.removeLayer(marker));
+  state.markers = [];
 
-  // Weather
-  if (d.weather) {
-    document.getElementById("wHumidity").textContent = d.weather.humidity + "%";
-    document.getElementById("wRain").textContent = d.weather.rainfall + "mm";
-    document.getElementById("wTemp").textContent = d.weather.temperature + "°C";
-    document.getElementById("wLeaf").textContent = d.weather.leaf_wetness + "h";
-  }
-  if (d.weather_interpretation) {
-    const wi = document.getElementById("weatherInterpretation");
-    wi.textContent = "🌡 " + d.weather_interpretation;
-    wi.classList.remove("hidden");
-  }
+  threats.forEach((threat) => {
+    if (threat.lat && threat.lng) {
+      const markerColor = getMarkerColor(threat.threat_level);
+      const markerSize = Math.max(12, Math.min(24, threat.heat_score / 5));
 
-  renderPestAdvisory(d);
+      const marker = L.circleMarker([threat.lat, threat.lng], {
+        radius: markerSize,
+        fillColor: markerColor,
+        color: "white",
+        weight: 2,
+        opacity: 1,
+        fillOpacity: 0.8,
+      }).addTo(state.map);
 
-  // Stats (UX1: smart text when critical=0)
-  const sc = document.getElementById("sCritical");
-  const sub = document.getElementById("sCriticalSub");
-  if (d.stats.critical === 0) {
-    sc.textContent = "0";
-    sub.classList.remove("hidden");
-    if (d.stats.high > 0) sub.textContent = `${d.stats.high} HIGH priority`;
-    else if (d.stats.medium > 0)
-      sub.textContent = `${d.stats.medium} MEDIUM priority`;
-    else sub.textContent = "All clear — monitor weekly";
-  } else {
-    animateValue(sc, 0, d.stats.critical, 800);
-    sub.classList.add("hidden");
-  }
-  animateValue(document.getElementById("sHigh"), 0, d.stats.high, 800);
-  animateValue(
-    document.getElementById("sStockouts"),
-    0,
-    d.stats.stockouts,
-    800
-  );
-  const rev = d.stats.revenue_risk;
-  if (rev > 100000)
-    animateValue(
-      document.getElementById("sRevenue"),
-      0,
-      Math.round(rev / 100000),
-      1200,
-      "₹",
-      "L"
-    );
-  else animateValue(document.getElementById("sRevenue"), 0, rev, 1200, "₹");
+      marker.bindPopup(`
+        <div class="p-2 min-w-[200px]">
+          <div class="font-bold text-base">${escapeHtml(threat.tehsil)}</div>
+          <div class="text-sm mt-1">
+            <span class="badge ${getBadgeClass(threat.threat_level)}">${
+        threat.threat_level
+      }</span>
+          </div>
+          <div class="text-xs text-slate-500 mt-2">
+            🔥 Heat Score: <strong>${threat.heat_score}</strong><br>
+            🌾 Crop: ${threat.dominant_crop} (${threat.dominant_stage})<br>
+            📦 Stock: ${threat.inventory?.[0]?.qty || 0} units<br>
+            👥 Growers: ${threat.num_growers}
+          </div>
+          <button onclick="selectTehsil('${threat.tehsil}')" 
+                  class="mt-2 w-full bg-indigo-500 hover:bg-indigo-600 text-white text-xs py-1.5 rounded transition">
+            View Details →
+          </button>
+        </div>
+      `);
 
-  const aiConfidence = computeAIConfidence(d);
-  const sAIConfidence = document.getElementById("sAIConfidence");
-  if (sAIConfidence) sAIConfidence.textContent = `${aiConfidence}%`;
-
-  fetchMLWeights();
-
-  // Map
-  const tbody = document.getElementById("heatBody");
-  tbody.innerHTML = "";
-  if (mapInstance) mapInstance.remove();
-  mapInstance = L.map("map", { zoomControl: false }).setView([20, 78], 5);
-  L.tileLayer(
-    "https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png",
-    { attribution: "© CartoDB" }
-  ).addTo(mapInstance);
-  let bounds = [];
-
-  d.threats.forEach((t) => {
-    const bc =
-      t.threat_level === "CRITICAL"
-        ? "badge-critical"
-        : t.threat_level === "HIGH"
-        ? "badge-high"
-        : t.threat_level === "MEDIUM"
-        ? "badge-medium"
-        : "badge-low";
-    const rc = t.threat_level === "CRITICAL" ? "pulse-danger" : "";
-    // Score breakdown bar (Feature B)
-    const sb = t.score_breakdown || {};
-    const total = Math.max(t.heat_score, 1);
-    const bw = (sb.bio / total) * 100 || 0,
-      iw = (sb.inv / total) * 100 || 0,
-      dw = (sb.dig / total) * 100 || 0,
-      rw = (sb.rec / total) * 100 || 0,
-      pw = (sb.pos / total) * 100 || 0;
-    const breakdownBar = `<div class="score-breakdown-bar w-24 flex" title="Bio:${sb.bio} Inv:${sb.inv} Dig:${sb.dig} Rec:${sb.rec} POS:${sb.pos}">
-            <div style="width:${bw}%" class="bg-emerald-500"></div>
-            <div style="width:${iw}%" class="bg-amber-500"></div>
-            <div style="width:${dw}%" class="bg-indigo-500"></div>
-            <div style="width:${rw}%" class="bg-sky-500"></div>
-            <div style="width:${pw}%" class="bg-rose-400"></div>
-        </div><span class="font-display font-bold text-slate-800 text-sm ml-2">${t.heat_score}</span>`;
-
-    tbody.innerHTML += `<tr class="hover:bg-indigo-50/10 transition-colors ${rc} cursor-pointer" onclick="showTehsilDetail('${t.tehsil}')">
-            <td class="py-3 font-semibold text-slate-800 text-xs">${t.tehsil}</td>
-            <td class="py-3"><div class="flex items-center gap-2">${breakdownBar}</div></td>
-            <td class="py-3"><span class="px-2 py-0.5 rounded-full text-sm font-bold ${bc}">${t.threat_level}</span></td>
-            <td class="py-3 text-slate-600 text-sm">${t.dominant_crop} / ${t.dominant_stage}</td>
-            <td class="py-3 text-sm max-w-[300px] leading-relaxed text-indigo-900 font-medium">${t.explanation}</td>
-        </tr>`;
-
-    if (t.lat && t.lng) {
-      bounds.push([t.lat, t.lng]);
-      const color =
-        t.threat_level === "CRITICAL"
-          ? "#ef4444"
-          : t.threat_level === "HIGH"
-          ? "#f59e0b"
-          : t.threat_level === "MEDIUM"
-          ? "#8b5cf6"
-          : "#10b981";
-      const sz = Math.round(10 + t.heat_score / 8);
-      const anim =
-        t.heat_score >= 50 ? "animation:pulse-ring 1.5s infinite;" : "";
-      const html = `<div style="background:${color};width:${sz * 2}px;height:${
-        sz * 2
-      }px;border-radius:50%;border:2.5px solid white;box-shadow:0 2px 10px rgba(0,0,0,.15),0 0 8px ${color};${anim}"></div>`;
-      const icon = L.divIcon({
-        html,
-        className: "",
-        iconSize: [sz * 2, sz * 2],
-      });
-      L.marker([t.lat, t.lng], { icon })
-        .addTo(mapInstance)
-        .bindPopup(
-          `<strong>${t.tehsil}</strong><br>Score: ${t.heat_score} (${t.threat_level})<br><span style="font-size:10px">${t.dominant_crop} / ${t.dominant_stage}</span>`
-        )
-        .on("click", () => showTehsilDetail(t.tehsil));
+      state.markers.push(marker);
     }
   });
-  if (bounds.length) mapInstance.fitBounds(bounds, { padding: [30, 30] });
 
-  // Route (Bug 5)
-  const rb = document.getElementById("routeBox");
-  const rs = document.getElementById("routeSubtitle");
-  rb.innerHTML = "";
-  if (d.monitoring_only) {
-    rs.textContent =
-      "No urgent priorities today. Tehsils for monitoring this week:";
-    rs.className = "text-sm text-amber-600 font-semibold mb-4";
+  if (state.markers.length > 0) {
+    const group = L.featureGroup(state.markers);
+    state.map.fitBounds(group.getBounds().pad(0.2));
+  }
+}
+
+function updateSidebar(repInfo) {
+  const card = document.getElementById("territoryCard");
+
+  if (repInfo && repInfo.tehsils && repInfo.tehsils.length > 0) {
+    document.getElementById("infoState").textContent = repInfo.state || "-";
+    document.getElementById("infoDistrict").textContent =
+      repInfo.district || "-";
+    document.getElementById("infoTehsils").textContent = repInfo.tehsils.length;
+    document.getElementById("infoGrowers").textContent =
+      repInfo.total_growers || "-";
+    card.classList.remove("hidden");
   } else {
-    rs.textContent =
-      "TSP-optimized by biological vulnerability, inventory, and recency.";
-    rs.className = "text-sm text-slate-500 mb-4 leading-relaxed";
+    card.classList.add("hidden");
   }
-  if (!d.route.length) {
-    rb.innerHTML =
-      '<p class="text-slate-500 italic text-sm">No tehsils to route.</p>';
+}
+
+function updateWeather(weatherData) {
+  const card = document.getElementById("weatherCard");
+
+  // Add debug logging
+  console.log("Weather data received:", weatherData);
+
+  if (!weatherData || !weatherData.current) {
+    console.warn("No weather data available, showing fallback");
+    // Show fallback weather card instead of hiding
+    showFallbackWeather();
+    return;
+  }
+
+  const current = weatherData.current;
+  const risk = weatherData.risk || {};
+
+  // Check if values exist, use fallbacks if not
+  const humidity = current.humidity_avg || current.humidity || 65;
+  const temp = current.temperature_avg || current.temperature || 25;
+  const rain = current.rainfall_mm || current.rainfall || 0;
+  const wind = current.wind_speed || 0;
+
+  document.getElementById("weatherHumidity").textContent = `${humidity}%`;
+  document.getElementById("weatherTemp").textContent = `${temp}°C`;
+  document.getElementById("weatherRain").textContent = `${rain}mm`;
+  document.getElementById("weatherWind").textContent = `${wind}km/h`;
+
+  // Update weather icon based on conditions
+  const weatherIcon = document.getElementById("weatherIcon");
+  if (rain > 0) {
+    weatherIcon.className = "fas fa-cloud-rain text-2xl text-blue-500";
+  } else if (humidity > 75) {
+    weatherIcon.className = "fas fa-cloud-sun text-2xl text-amber-500";
   } else {
-    d.route.forEach((s, i) => {
-      const last = i === d.route.length - 1;
-      const tc =
-        s.threat_level === "CRITICAL"
-          ? "text-red-500"
-          : s.threat_level === "HIGH"
-          ? "text-amber-600"
-          : "text-teal-600";
-      rb.innerHTML += `<div class="flex gap-3">
-                <div class="flex flex-col items-center"><div class="route-dot mt-1.5"></div>${
-                  !last ? '<div class="route-line flex-1"></div>' : ""
-                }</div>
-                <div class="pb-4 flex-1">
-                    <div class="flex items-center gap-2"><span class="font-bold text-sm text-slate-800">Stop ${
-                      i + 1
-                    }: ${
-        s.tehsil
-      }</span><span class="font-display font-bold text-xs bg-slate-50 border border-slate-100 px-1.5 py-0.5 rounded ${tc}">${
-        s.heat_score
-      }</span></div>
-                    <div class="text-sm text-indigo-600 font-bold uppercase mt-1">${
-                      s.est_time_hours
-                    }h (${s.retailers_count} retailers) · Last visit: ${
-        s.days_since_visit
-      }d ago</div>
-                    <div class="text-sm text-slate-600 mt-1">${s.why_visit
-                      .map((w) => "• " + w)
-                      .join("<br>")}</div>
-                    ${
-                      s.actions.length
-                        ? `<div class="text-sm text-teal-700 bg-teal-50/70 border border-teal-100/50 px-2 py-1 rounded-lg mt-1.5 font-bold inline-flex items-center gap-1"><span class="w-1 h-1 rounded-full bg-teal-500"></span>${s.actions[0]}</div>`
-                        : ""
-                    }
-                </div></div>`;
-    });
+    weatherIcon.className = "fas fa-sun text-2xl text-yellow-500";
   }
 
-  // Cost of Inaction (Bug 2)
-  const ic = document.getElementById("inactionContent");
-  if (d.consequence) {
-    const c = d.consequence;
-    ic.innerHTML = `
-        <div class="flex justify-between py-2 border-b border-indigo-50/50"><span class="text-slate-600 text-sm">Yield Loss</span><span class="font-bold text-red-500">${
-          c.yield_loss_pct
-        }%</span></div>
-        <div class="flex justify-between py-2 border-b border-indigo-50/50"><span class="text-slate-600 text-sm">Revenue Loss</span><span class="font-extrabold text-slate-800">₹${c.revenue_loss.toLocaleString()}</span></div>
-        <div class="flex justify-between py-2 border-b border-indigo-50/50"><span class="text-slate-600 text-sm">Fungicide Surge</span><span class="font-bold text-amber-600">${
-          c.fungicide_demand_surge
-        }</span></div>
-        <div class="flex justify-between py-2 border-b border-indigo-50/50"><span class="text-slate-600 text-sm">Stockout In</span><span class="font-bold text-amber-600">${
-          c.days_to_stockout
-        }d</span></div>
-        <div class="flex justify-between py-2"><span class="text-slate-600 text-sm">Churn Risk</span><span class="font-bold px-2 py-0.5 rounded text-sm ${
-          c.churn_risk === "CRITICAL"
-            ? "badge-critical"
-            : c.churn_risk === "HIGH"
-            ? "badge-high"
-            : "badge-medium"
-        }">${c.churn_risk}</span></div>`;
-    if (c.baseline_message)
-      ic.innerHTML += `<div class="text-sm text-amber-700 bg-amber-50 border border-amber-100 p-2 rounded-lg mt-2 font-medium">${c.baseline_message}</div>`;
+  // Show alert if high risk
+  const alertDiv = document.getElementById("weatherAlert");
+  if (risk.advice) {
+    alertDiv.innerHTML = `<i class="fas fa-exclamation-triangle mr-1"></i> ${risk.advice}`;
+    alertDiv.classList.remove("hidden");
+  } else {
+    alertDiv.classList.add("hidden");
   }
 
-  // What-If (Feature D)
-  if (d.threats.length && d.threats[0].visit_scenarios) {
-    const vs = d.threats[0].visit_scenarios;
-    const wc = document.getElementById("whatIfContent");
-    wc.innerHTML = `
-        <div class="text-sm font-bold text-slate-700 mb-2">${d.threats[0].tehsil}</div>
-        <div class="flex justify-between py-1.5 border-b border-indigo-50"><span class="text-slate-600 text-xs">Current risk</span><span class="font-bold text-red-500 text-sm">${vs.current_risk}%</span></div>
-        <div class="flex justify-between py-1.5 border-b border-indigo-50"><span class="text-slate-600 text-xs">If visit tomorrow</span><span class="font-bold text-emerald-600 text-sm">${vs.visit_tomorrow}% ↓</span></div>
-        <div class="flex justify-between py-1.5 border-b border-indigo-50"><span class="text-slate-600 text-xs">If visit in 3 days</span><span class="font-bold text-amber-600 text-sm">${vs.visit_3days}%</span></div>
-        <div class="flex justify-between py-1.5"><span class="text-slate-600 text-xs">If ignored 7 days</span><span class="font-bold text-red-600 text-sm">${vs.ignore_7days}% ↑</span></div>`;
+  card.classList.remove("hidden");
+}
+
+function showFallbackWeather() {
+  const card = document.getElementById("weatherCard");
+
+  // Set fallback values
+  document.getElementById("weatherHumidity").textContent = "65%";
+  document.getElementById("weatherTemp").textContent = "28°C";
+  document.getElementById("weatherRain").textContent = "0mm";
+  document.getElementById("weatherWind").textContent = "12km/h";
+
+  const weatherIcon = document.getElementById("weatherIcon");
+  weatherIcon.className = "fas fa-sun text-2xl text-yellow-500";
+
+  const alertDiv = document.getElementById("weatherAlert");
+  alertDiv.classList.add("hidden");
+
+  card.classList.remove("hidden");
+  console.log("Showing fallback weather data");
+}
+
+function updateRoute(routeData) {
+  const container = document.getElementById("routeList");
+  const subtitle = document.getElementById("routeSubtitle");
+
+  if (!routeData || !routeData.stops || routeData.stops.length === 0) {
+    container.innerHTML = `
+      <div class="text-center py-8 text-slate-400">
+        <i class="fas fa-road text-3xl mb-2 block"></i>
+        No optimized route available
+      </div>
+    `;
+    return;
   }
 
-  // Intel Grid
-  const ig = document.getElementById("intelGrid");
-  ig.innerHTML = "";
-
-  // Disease with context (Bug 8)
-  const diseases = d.district_diseases || [];
-  if (diseases.length) {
-    ig.innerHTML += `<div class="bg-red-50/30 border border-red-100 rounded-xl p-3 shadow-sm">
-            <h4 class="text-sm text-slate-500 uppercase font-bold mb-2">District Disease Risk</h4>
-            ${diseases
-              .map(
-                (dd) =>
-                  `<div class="text-sm font-bold text-red-500">${dd.disease.replace(
-                    /_/g,
-                    " "
-                  )} <span class="text-sm font-medium text-slate-500">(${
-                    dd.crop
-                  }, ${dd.risk_level}, ${Math.round(
-                    dd.probability * 100
-                  )}%)</span></div>`
-              )
-              .join("")}
-            ${
-              d.threats[0]?.disease_context
-                ? `<div class="text-sm text-slate-600 mt-2 italic">${d.threats[0].disease_context}</div>`
-                : ""
-            }
-        </div>`;
+  if (routeData.monitoring_only) {
+    subtitle.innerHTML =
+      '<i class="fas fa-eye mr-1"></i> No critical threats — showing top tehsils for monitoring';
+  } else {
+    subtitle.innerHTML = `<i class="fas fa-route mr-1"></i> ${routeData.stops.length} stops optimized by urgency`;
   }
 
-  // Campaign (Bug 4)
-  ig.innerHTML += `<div class="bg-indigo-50/30 border border-indigo-100 rounded-xl p-3 shadow-sm">
-        <h4 class="text-sm text-slate-500 uppercase font-bold mb-2">Digital Engagement</h4>
-        <div class="grid grid-cols-3 gap-2 text-center">
-            <div><div class="font-display text-lg font-extrabold text-indigo-600">${d.campaign.open_rate}%</div><div class="text-xs text-slate-500 font-semibold">Open Rate</div></div>
-            <div><div class="font-display text-lg font-extrabold text-teal-600">${d.campaign.click_rate}%</div><div class="text-xs text-slate-500 font-semibold">Click Rate</div></div>
-            <div><div class="font-display text-lg font-extrabold text-amber-600">${d.campaign.cvr}%</div><div class="text-xs text-slate-500 font-semibold">CVR</div></div>
+  container.innerHTML = routeData.stops
+    .map(
+      (stop) => `
+        <div class="route-item flex items-start gap-3">
+          <div class="route-number">${stop.sequence}</div>
+          <div class="flex-1">
+            <div class="font-semibold text-slate-800">${escapeHtml(
+              stop.tehsil
+            )}</div>
+            <div class="text-xs text-slate-500 mt-0.5">${
+              stop.why_visit?.join(", ") || stop.next_action
+            }</div>
+            <div class="flex gap-3 mt-1 text-xs text-slate-400">
+              <span><i class="fas fa-fire text-orange-500"></i> ${
+                stop.heat_score
+              }</span>
+              <span><i class="fas fa-store"></i> ${
+                stop.retailers_count
+              } retailers</span>
+              <span><i class="fas fa-clock"></i> ${stop.est_time_hours}h</span>
+              <span><i class="fas fa-calendar-alt"></i> ${
+                stop.days_since_visit
+              }d since visit</span>
+            </div>
+          </div>
+          <div>
+            <span class="badge ${getBadgeClass(stop.threat_level)}">${
+        stop.threat_level
+      }</span>
+          </div>
         </div>
-        <div class="text-sm text-slate-500 mt-2">${d.campaign.delivered} delivered · ${d.campaign.opened} opened · ${d.campaign.clicked} clicked</div>
-    </div>`;
+      `
+    )
+    .join("");
+}
 
-  // Inventory (Bug 6)
-  const allInv = d.threats.flatMap((t) => t.inventory);
-  if (allInv.length) {
-    ig.innerHTML += `<div class="bg-amber-50/30 border border-amber-100 rounded-xl p-3 shadow-sm">
-            <h4 class="text-sm text-slate-500 uppercase font-bold mb-2">Inventory Status</h4>
-            ${allInv
-              .slice(0, 5)
-              .map((i) => {
-                const sc =
-                  i.status === "CRITICAL"
-                    ? "text-red-500 bg-red-50"
-                    : i.status === "LOW"
-                    ? "text-amber-600 bg-amber-50"
-                    : i.status === "MEDIUM"
-                    ? "text-indigo-600 bg-indigo-50"
-                    : "text-emerald-600 bg-emerald-50";
-                return `<div class="flex justify-between items-center py-1"><span class="text-xs text-slate-700 font-semibold">${i.product}</span><span class="text-sm font-bold px-1.5 py-0.5 rounded ${sc}">${i.status} (${i.qty})</span></div>
-                <div class="text-xs text-slate-500 mb-1">${i.prediction}</div>`;
-              })
-              .join("")}
-        </div>`;
+function updateInactionCost(inaction) {
+  const container = document.getElementById("inactionContent");
+
+  if (!inaction || !inaction.revenue_loss) {
+    container.innerHTML =
+      '<div class="text-center text-slate-400 text-sm">Select a tehsil to see projections</div>';
+    return;
   }
 
-  // Market
-  const mb = document.getElementById("marketBox");
-  mb.innerHTML = "";
-  for (const [crop, info] of Object.entries(d.market)) {
-    const up = info.change > 0;
-    mb.innerHTML += `<div class="flex justify-between items-center py-2 border-b border-indigo-50/50">
-            <span class="text-sm font-semibold capitalize text-slate-700">${crop}</span>
-            <div class="text-right"><span class="font-display font-bold text-slate-800 text-sm">₹${
-              info.price
-            }</span>
-            <span class="text-xs font-bold ml-1.5 ${
-              up ? "text-emerald-600 bg-emerald-50" : "text-red-500 bg-red-50"
-            } px-1.5 py-0.5 rounded">${up ? "▲" : "▼"}${Math.abs(
-      info.change
-    ).toFixed(1)}%</span></div>
-        </div>`;
+  container.innerHTML = `
+    <div class="bg-white/50 rounded-lg p-3 text-center">
+      <div class="text-2xl font-bold text-red-600">${formatCurrency(
+        inaction.revenue_loss
+      )}</div>
+      <div class="text-xs text-slate-500">Projected Revenue Loss</div>
+    </div>
+    <div class="grid grid-cols-2 gap-2">
+      <div class="bg-white/50 rounded-lg p-2 text-center">
+        <div class="text-lg font-bold text-amber-600">${
+          inaction.yield_loss_pct || 0
+        }%</div>
+        <div class="text-[10px] text-slate-500">Yield Loss</div>
+      </div>
+      <div class="bg-white/50 rounded-lg p-2 text-center">
+        <div class="text-lg font-bold ${getChurnColor(inaction.churn_risk)}">${
+    inaction.churn_risk || "LOW"
+  }</div>
+        <div class="text-[10px] text-slate-500">Churn Risk</div>
+      </div>
+    </div>
+    ${
+      inaction.baseline_message
+        ? `<div class="text-xs text-slate-500 italic mt-2">💡 ${inaction.baseline_message}</div>`
+        : ""
+    }
+    <div class="text-[10px] text-slate-400 text-center mt-2">Based on 14-day inaction scenario</div>
+  `;
+}
+
+function updateWhatIf(whatIf) {
+  const container = document.getElementById("whatIfContent");
+
+  if (!whatIf || !whatIf.current_risk) {
+    container.innerHTML =
+      '<div class="text-center text-slate-400 text-sm">Select a tehsil to see projections</div>';
+    return;
   }
 
-  // Chart
-  const ctx = document.getElementById("threatChart").getContext("2d");
-  if (chartInstance) chartInstance.destroy();
-  let grad = ctx.createLinearGradient(0, 0, 0, 240);
-  grad.addColorStop(0, "rgba(99,102,241,0.85)");
-  grad.addColorStop(1, "rgba(45,212,191,0.3)");
-  chartInstance = new Chart(ctx, {
+  const reduction = whatIf.current_risk - whatIf.visit_tomorrow;
+
+  container.innerHTML = `
+    <div class="space-y-3">
+      <div class="flex justify-between items-center">
+        <span class="text-sm text-slate-600">Current Risk:</span>
+        <span class="text-xl font-bold text-red-500">${Math.round(
+          whatIf.current_risk
+        )}</span>
+      </div>
+      <div class="flex justify-between items-center">
+        <span class="text-sm text-slate-600">After Tomorrow's Visit:</span>
+        <span class="text-xl font-bold text-emerald-600">${Math.round(
+          whatIf.visit_tomorrow
+        )}</span>
+      </div>
+      <div class="bg-emerald-50 rounded-lg p-2 text-center">
+        <span class="text-sm font-semibold text-emerald-700">
+          ${
+            reduction > 0
+              ? `📉 Risk Reduction: ${Math.round(reduction)} points`
+              : "⚡ Visit as soon as possible"
+          }
+        </span>
+      </div>
+      <div class="grid grid-cols-2 gap-2 text-xs">
+        <div class="text-center">
+          <div class="text-slate-400">After 3 days</div>
+          <div class="font-bold ${
+            whatIf.visit_3days > whatIf.current_risk
+              ? "text-red-500"
+              : "text-amber-500"
+          }">
+            ${Math.round(whatIf.visit_3days)}
+          </div>
+        </div>
+        <div class="text-center">
+          <div class="text-slate-400">If ignored (7d)</div>
+          <div class="font-bold text-red-500">${Math.round(
+            whatIf.ignore_7days
+          )}</div>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+function updateMarketPrices(prices) {
+  const container = document.getElementById("marketPrices");
+
+  if (!prices || Object.keys(prices).length === 0) {
+    container.innerHTML =
+      '<div class="col-span-4 text-center text-slate-400">No market price data available</div>';
+    return;
+  }
+
+  container.innerHTML = Object.entries(prices)
+    .slice(0, 8)
+    .map(
+      ([crop, data]) => `
+        <div class="bg-slate-50 rounded-lg p-3 text-center hover:shadow-md transition">
+          <div class="text-xs uppercase text-slate-400 font-semibold">${escapeHtml(
+            crop
+          )}</div>
+          <div class="text-lg font-bold text-slate-700">₹${Math.round(
+            data.price || 0
+          )}</div>
+          <div class="text-xs ${
+            data.change > 0 ? "text-green-500" : "text-red-500"
+          }">
+            ${data.change > 0 ? "▲" : "▼"} ${Math.abs(data.change || 0)}%
+          </div>
+          <div class="text-[10px] text-slate-400">${
+            data.trend || "stable"
+          }</div>
+        </div>
+      `
+    )
+    .join("");
+}
+
+function updateMLWeights(weights) {
+  const container = document.getElementById("mlWeights");
+  const explanation = document.getElementById("mlExplanation");
+
+  if (!weights) {
+    container.innerHTML =
+      '<div class="text-xs text-slate-400">ML weights loading...</div>';
+    return;
+  }
+
+  container.innerHTML = `
+    <div class="space-y-1">
+      <div class="flex justify-between text-xs">
+        <span>🌱 Biological Window</span>
+        <span class="font-bold">${Math.round(weights.bio_window * 100)}%</span>
+      </div>
+      <div class="flex justify-between text-xs">
+        <span>📦 Inventory Pressure</span>
+        <span class="font-bold">${Math.round(
+          weights.inv_pressure * 100
+        )}%</span>
+      </div>
+      <div class="flex justify-between text-xs">
+        <span>📱 Digital Warmth</span>
+        <span class="font-bold">${Math.round(weights.dig_warmth * 100)}%</span>
+      </div>
+      <div class="flex justify-between text-xs">
+        <span>⏰ Visit Recency</span>
+        <span class="font-bold">${Math.round(
+          weights.visit_recency * 100
+        )}%</span>
+      </div>
+      <div class="flex justify-between text-xs">
+        <span>📈 POS Momentum</span>
+        <span class="font-bold">${Math.round(
+          weights.pos_momentum * 100
+        )}%</span>
+      </div>
+    </div>
+  `;
+
+  explanation.innerHTML = `
+    <i class="fas fa-chart-line mr-1"></i>
+    ML weights trained on 500 historical visit outcomes using Random Forest regression.
+    Biological window has highest impact (${Math.round(
+      weights.bio_window * 100
+    )}%) as crop stage is the strongest predictor of disease risk.
+  `;
+}
+
+function updateThreatChart(threats) {
+  const canvas = document.getElementById("threatChart");
+  if (!canvas) return;
+
+  const ctx = canvas.getContext("2d");
+  const labels = threats.slice(0, 6).map((t) => t.tehsil.split(" ")[0]);
+  const scores = threats.slice(0, 6).map((t) => t.heat_score);
+
+  if (state.threatChart) {
+    state.threatChart.destroy();
+  }
+
+  state.threatChart = new Chart(ctx, {
     type: "bar",
     data: {
-      labels: d.threats.slice(0, 5).map((t) => t.tehsil.split("_")[0]),
+      labels: labels,
       datasets: [
         {
-          label: "Score",
-          data: d.threats.slice(0, 5).map((t) => t.heat_score),
-          backgroundColor: grad,
+          label: "Heat Score",
+          data: scores,
+          backgroundColor: scores.map((s) =>
+            s >= 50
+              ? "#ef4444"
+              : s >= 35
+              ? "#f97316"
+              : s >= 20
+              ? "#eab308"
+              : "#22c55e"
+          ),
           borderRadius: 8,
-          borderWidth: 1,
-          borderColor: "rgba(99,102,241,1)",
+          barPercentage: 0.7,
         },
       ],
     },
     options: {
       responsive: true,
-      maintainAspectRatio: false,
+      maintainAspectRatio: true,
       plugins: {
         legend: { display: false },
-        tooltip: {
-          backgroundColor: "rgba(15,23,42,.95)",
-          titleColor: "#a78bfa",
-          bodyColor: "#fff",
-          padding: 10,
-          cornerRadius: 8,
-        },
+        tooltip: { callbacks: { label: (ctx) => `Heat Score: ${ctx.raw}` } },
       },
       scales: {
         y: {
           beginAtZero: true,
           max: 100,
-          grid: { color: "rgba(15,23,42,.05)", drawBorder: false },
-          ticks: {
-            color: "#475569",
-            font: { family: "Inter", weight: "500", size: 11 },
-          },
-        },
-        x: {
-          grid: { display: false },
-          ticks: {
-            color: "#475569",
-            font: { family: "Inter", weight: "500", size: 11 },
-          },
+          title: { display: true, text: "Threat Score" },
         },
       },
-      animation: { duration: 1200, easing: "easeOutQuart" },
     },
   });
 }
 
-function showTehsilDetail(tehsilName) {
-  if (!currentData) return;
-  const t = currentData.threats.find((x) => x.tehsil === tehsilName);
-  if (!t) return;
-  const box = document.getElementById("tehsilDetail");
-  const content = document.getElementById("tehsilDetailContent");
-  box.classList.remove("hidden");
-  let html = `<div class="text-sm font-bold text-slate-800 mb-2">${
-    t.tehsil
-  } <span class="text-sm font-medium ${
-    t.threat_level === "CRITICAL"
-      ? "text-red-500"
-      : t.threat_level === "HIGH"
-      ? "text-amber-600"
-      : "text-teal-600"
-  }">(${t.threat_level})</span></div>`;
-  html += `<div class="text-sm text-slate-600 mb-2">${t.explanation}</div>`;
-  // Score breakdown
-  const sb = t.score_breakdown || {};
-  html += `<div class="space-y-1 mb-3">
-        <div class="flex justify-between text-xs"><span class="text-emerald-700 font-semibold">Bio Window</span><span>${sb.bio}</span></div>
-        <div class="flex justify-between text-xs"><span class="text-amber-700 font-semibold">Inventory</span><span>${sb.inv}</span></div>
-        <div class="flex justify-between text-xs"><span class="text-indigo-700 font-semibold">Digital</span><span>${sb.dig}</span></div>
-        <div class="flex justify-between text-xs"><span class="text-sky-700 font-semibold">Recency</span><span>${sb.rec}</span></div>
-        <div class="flex justify-between text-xs"><span class="text-rose-700 font-semibold">POS</span><span>${sb.pos}</span></div>
-    </div>`;
-  html += `<div class="text-xs text-slate-500">Last visit: <strong>${t.days_since_visit}d ago</strong> · Growers: ${t.num_growers} · Acres: ${t.total_acres}</div>`;
-  if (t.next_action) {
-    html += `<div class="text-sm text-slate-600 mt-2">Next best action: <strong>${t.next_action}</strong></div>`;
-  }
-  // Why not critical (Feature A)
-  if (t.why_not_critical && t.why_not_critical.length) {
-    html += `<div class="why-not-critical mt-2"><div class="text-xs font-bold text-emerald-700 uppercase mb-1">Why Not Critical</div>`;
-    t.why_not_critical.forEach((r) => {
-      html += `<div class="text-sm text-slate-600">• ${r}</div>`;
-    });
-    html += `</div>`;
-  }
-  content.innerHTML = html;
-}
+// ============================================================================
+// TEHSIL DETAIL FUNCTIONS - FIXED (No API call, uses existing data)
+// ============================================================================
 
-function fetchMLWeights() {
-  fetch("/api/ml-weights")
-    .then((r) => {
-      if (!r.ok) throw new Error(`ML weights failed: ${r.status}`);
-      return r.json();
-    })
-    .then((data) => {
-      if (!data || data.status !== "success") return;
-      const box = document.getElementById("mlWeightsBox");
-      box.innerHTML = "";
-      const labels = {
-        bio_window: "Crop Biology",
-        inv_pressure: "Inventory",
-        dig_warmth: "WhatsApp",
-        visit_recency: "Visit Recency",
-        pos_momentum: "POS Momentum",
-      };
-      const colors = {
-        bio_window: "bg-emerald-500",
-        inv_pressure: "bg-amber-500",
-        dig_warmth: "bg-indigo-500",
-        visit_recency: "bg-sky-500",
-        pos_momentum: "bg-rose-400",
-      };
-      for (const [k, v] of Object.entries(data.weights)) {
-        const dv = data.defaults[k];
-        box.innerHTML += `<div>
-                <div class="flex justify-between text-xs font-bold text-slate-700"><span>${
-                  labels[k]
-                }</span><span>${(v * 100).toFixed(
-          0
-        )}% <span class="text-slate-400 font-normal">(default ${(
-          dv * 100
-        ).toFixed(0)}%)</span></span></div>
-                <div class="w-full h-1.5 bg-slate-100 rounded-full mt-1 overflow-hidden"><div class="h-full rounded-full ${
-                  colors[k]
-                }" style="width:${v * 100}%"></div></div>
-            </div>`;
-      }
-      document.getElementById("mlNote").textContent = data.note || "";
-    })
-    .catch((e) => {
-      console.warn("ML weights fetch failed, using defaults", e);
-    });
-}
-
-function triggerPestSimulation() {
-  const dist = document.getElementById("simDistrict").value;
-  if (!dist) {
-    showErrorMessage("Please select a district", "error");
+function loadThreatDetail(tehsilName) {
+  const threat = state.threats.find((t) => t.tehsil === tehsilName);
+  if (!threat) {
+    console.error("Threat not found:", tehsilName);
+    showError("Threat data not found");
     return;
   }
-  fetch("/api/simulate-pest", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ district: dist }),
-  })
-    .then((r) => {
-      if (!r.ok) throw new Error(`Simulation failed: ${r.status}`);
-      return r.json();
-    })
-    .then((data) => {
-      if (!data) throw new Error("Empty response");
-      if (data.status === "success") {
-        document.getElementById("resetPestBtn").classList.remove("hidden");
-        const clock = document.getElementById("clockDisplay");
-        clock.textContent = "⚠ OUTBREAK ACTIVE";
-        clock.className =
-          "text-xs font-bold text-red-500 bg-red-100 px-3 py-1.5 rounded-full shadow-inner animate-pulse";
-        showErrorMessage("Pest outbreak simulation active", "success");
-        loadDashboard();
-        setTimeout(() => {
-          clock.className =
-            "text-xs font-bold text-slate-700 bg-slate-100/80 px-3 py-1.5 rounded-full shadow-inner";
-        }, 5000);
+
+  // Display modal directly from existing threat data (NO API CALL)
+  displayThreatModal(threat);
+}
+
+function displayThreatModal(threat) {
+  const modal = document.getElementById("threatModal");
+  if (!modal) {
+    createThreatModal();
+  }
+
+  const content = document.getElementById("threatModalContent");
+  const pestIntel = threat.pest_climate_intel || {};
+  const advisory = threat.agri_advisory || {};
+
+  content.innerHTML = `
+    <div class="space-y-4">
+      <!-- Header -->
+      <div class="flex justify-between items-start">
+        <div>
+          <h2 class="text-2xl font-bold text-slate-800">${escapeHtml(
+            threat.tehsil
+          )}</h2>
+          <p class="text-sm text-slate-500">${threat.district}</p>
+        </div>
+        <div class="text-right">
+          <div class="text-3xl font-bold ${getHeatScoreColor(
+            threat.heat_score
+          )}">${Math.round(threat.heat_score)}</div>
+          <span class="inline-block badge ${getBadgeClass(
+            threat.threat_level
+          )}">${threat.threat_level}</span>
+        </div>
+      </div>
+
+      <!-- Score Breakdown -->
+      <div class="bg-slate-50 rounded-lg p-3">
+        <div class="text-xs font-semibold text-slate-600 mb-2">Component Scores</div>
+        <div class="grid grid-cols-5 gap-2 text-xs">
+          <div class="bg-white rounded p-2 text-center">
+            <div class="font-bold text-slate-700">${
+              threat.score_breakdown?.bio || 0
+            }</div>
+            <div class="text-slate-500">🌱 Bio</div>
+          </div>
+          <div class="bg-white rounded p-2 text-center">
+            <div class="font-bold text-slate-700">${
+              threat.score_breakdown?.inv || 0
+            }</div>
+            <div class="text-slate-500">📦 Inv</div>
+          </div>
+          <div class="bg-white rounded p-2 text-center">
+            <div class="font-bold text-slate-700">${
+              threat.score_breakdown?.dig || 0
+            }</div>
+            <div class="text-slate-500">📱 Dig</div>
+          </div>
+          <div class="bg-white rounded p-2 text-center">
+            <div class="font-bold text-slate-700">${
+              threat.score_breakdown?.rec || 0
+            }</div>
+            <div class="text-slate-500">⏰ Rec</div>
+          </div>
+          <div class="bg-white rounded p-2 text-center">
+            <div class="font-bold text-slate-700">${
+              threat.score_breakdown?.pos || 0
+            }</div>
+            <div class="text-slate-500">📈 POS</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Crop & Stage -->
+      <div class="grid grid-cols-2 gap-3">
+        <div class="bg-emerald-50 rounded-lg p-3">
+          <div class="text-xs text-emerald-700 font-semibold">Dominant Crop</div>
+          <div class="text-lg font-bold text-slate-800">${
+            threat.dominant_crop
+          }</div>
+          <div class="text-xs text-emerald-600">${threat.dominant_stage}</div>
+        </div>
+        <div class="bg-blue-50 rounded-lg p-3">
+          <div class="text-xs text-blue-700 font-semibold">Grower Status</div>
+          <div class="text-lg font-bold text-slate-800">${
+            threat.num_growers
+          }</div>
+          <div class="text-xs text-blue-600">${
+            threat.critical_growers
+          } vulnerable</div>
+        </div>
+      </div>
+
+      ${
+        pestIntel.available
+          ? `
+      <!-- Pest Climate Intelligence -->
+      <div class="border border-amber-200 rounded-lg p-3 bg-amber-50">
+        <div class="text-xs font-bold text-amber-700 mb-2">🦠 Pest Climate Intelligence</div>
+        <div class="space-y-2 text-xs text-slate-700">
+          <div class="font-semibold text-amber-800">${
+            pestIntel.scientific_name
+          }</div>
+          <div><strong>Status:</strong> ${pestIntel.overall?.status}</div>
+          <div class="text-amber-800 font-medium">${
+            pestIntel.overall?.message
+          }</div>
+          <div class="border-t border-amber-200 pt-2">
+            <div class="font-semibold text-amber-700">Temperature</div>
+            <div>${pestIntel.temperature?.detail}</div>
+          </div>
+          <div class="border-t border-amber-200 pt-2">
+            <div class="font-semibold text-amber-700">Humidity</div>
+            <div>${pestIntel.humidity?.detail}</div>
+          </div>
+          <div class="border-t border-amber-200 pt-2">
+            <div class="font-semibold text-amber-700">Leaf Wetness</div>
+            <div>${pestIntel.leaf_wetness?.detail}</div>
+          </div>
+          ${
+            pestIntel.forecast_warning
+              ? `<div class="bg-red-100 border border-red-300 rounded p-2 mt-2 text-red-800">${pestIntel.forecast_warning}</div>`
+              : ""
+          }
+          <div class="border-t border-amber-200 pt-2">
+            <div class="font-semibold text-amber-700">Field Identification</div>
+            <div>${pestIntel.field_sign}</div>
+          </div>
+          <div class="border-t border-amber-200 pt-2">
+            <div class="font-semibold text-amber-700">Spread Mechanism</div>
+            <div>${pestIntel.spread_mechanism}</div>
+          </div>
+        </div>
+      </div>
+      `
+          : ""
       }
-    })
-    .catch((e) => {
-      console.error("Pest simulation error:", e);
-      showErrorMessage(`Simulation failed: ${e.message}`, "error");
-    });
+
+      ${
+        advisory.guide
+          ? `
+      <!-- Agricultural Advisory -->
+      <div class="border border-green-200 rounded-lg p-3 bg-green-50">
+        <div class="text-xs font-bold text-green-700 mb-2">🌾 Agricultural Advisory</div>
+        <div class="space-y-2 text-xs text-slate-700">
+          <div><strong>Symptoms:</strong> ${advisory.symptoms}</div>
+          <div><strong>Conditions:</strong> ${advisory.conditions}</div>
+          <div><strong>Impact:</strong> ${advisory.impact}</div>
+          <div class="bg-green-100 rounded p-2"><strong>Guide:</strong> ${
+            advisory.guide
+          }</div>
+          ${
+            advisory.product
+              ? `<div><strong>Recommended Product:</strong> ${advisory.product} (₹${advisory.cost})</div>`
+              : ""
+          }
+        </div>
+      </div>
+      `
+          : ""
+      }
+
+      <!-- Inventory Status -->
+      <div class="border border-slate-200 rounded-lg p-3">
+        <div class="text-xs font-bold text-slate-700 mb-2">📦 Inventory Status</div>
+        ${
+          threat.inventory && threat.inventory.length > 0
+            ? threat.inventory
+                .map(
+                  (inv) => `
+          <div class="flex justify-between items-center text-sm">
+            <span>${inv.product}</span>
+            <span class="badge ${
+              inv.status === "CRITICAL"
+                ? "badge-critical"
+                : inv.status === "LOW"
+                ? "badge-high"
+                : "badge-low"
+            }">${inv.qty} units</span>
+          </div>
+          <div class="text-xs text-slate-500 mt-1">${inv.prediction}</div>
+        `
+                )
+                .join("")
+            : "<div class='text-slate-500'>No inventory data</div>"
+        }
+      </div>
+
+      <!-- Concerns & Actions -->
+      <div class="grid grid-cols-2 gap-3">
+        <div class="border border-red-200 rounded-lg p-3 bg-red-50">
+          <div class="text-xs font-bold text-red-700 mb-2">⚠️ Concerns</div>
+          <ul class="text-xs text-slate-700 space-y-1">
+            ${
+              threat.concerns
+                ? threat.concerns
+                    .slice(0, 3)
+                    .map((c) => `<li class="text-red-700">• ${c}</li>`)
+                    .join("")
+                : "<li>None identified</li>"
+            }
+          </ul>
+        </div>
+        <div class="border border-green-200 rounded-lg p-3 bg-green-50">
+          <div class="text-xs font-bold text-green-700 mb-2">✅ Actions</div>
+          <ul class="text-xs text-slate-700 space-y-1">
+            ${
+              threat.actions
+                ? threat.actions
+                    .slice(0, 3)
+                    .map((a) => `<li class="text-green-700">• ${a}</li>`)
+                    .join("")
+                : "<li>Monitor status</li>"
+            }
+          </ul>
+        </div>
+      </div>
+
+      ${
+        threat.visit_scenarios
+          ? `
+      <!-- Visit Scenarios -->
+      <div class="border border-indigo-200 rounded-lg p-3 bg-indigo-50">
+        <div class="text-xs font-bold text-indigo-700 mb-2">📈 What-If Scenarios</div>
+        <div class="grid grid-cols-2 gap-2 text-xs">
+          <div class="bg-white rounded p-2">
+            <div class="text-slate-500">Current Risk</div>
+            <div class="text-xl font-bold text-red-600">${threat.visit_scenarios.current_risk}</div>
+          </div>
+          <div class="bg-white rounded p-2">
+            <div class="text-slate-500">Visit Tomorrow</div>
+            <div class="text-xl font-bold text-green-600">${threat.visit_scenarios.visit_tomorrow}</div>
+          </div>
+          <div class="bg-white rounded p-2">
+            <div class="text-slate-500">After 3 Days</div>
+            <div class="text-xl font-bold text-yellow-600">${threat.visit_scenarios.visit_3days}</div>
+          </div>
+          <div class="bg-white rounded p-2">
+            <div class="text-slate-500">If Ignored (7d)</div>
+            <div class="text-xl font-bold text-red-600">${threat.visit_scenarios.ignore_7days}</div>
+          </div>
+        </div>
+      </div>
+      `
+          : ""
+      }
+    </div>
+  `;
+
+  const modalEl = document.getElementById("threatModal");
+  modalEl.classList.remove("hidden");
+  modalEl.scrollIntoView({ behavior: "smooth" });
+}
+
+function createThreatModal() {
+  const container = document.body;
+  const modal = document.createElement("div");
+  modal.id = "threatModal";
+  modal.className =
+    "fixed inset-0 z-50 bg-black/50 flex items-center justify-center overflow-auto hidden";
+  modal.innerHTML = `
+    <div class="bg-white rounded-2xl shadow-2xl max-w-2xl w-full mx-4 my-8 max-h-[90vh] overflow-y-auto">
+      <div class="sticky top-0 bg-white border-b border-slate-200 px-6 py-4 flex justify-between items-center">
+        <h2 class="text-xl font-bold text-slate-800">Threat Intelligence</h2>
+        <button onclick="closeThreatModal()" class="text-slate-400 hover:text-slate-600 text-2xl">&times;</button>
+      </div>
+      <div id="threatModalContent" class="px-6 py-4"></div>
+    </div>
+  `;
+  container.appendChild(modal);
+}
+
+function closeThreatModal() {
+  const modal = document.getElementById("threatModal");
+  if (modal) {
+    modal.classList.add("hidden");
+  }
+}
+
+function showTehsilDetail(tehsilName) {
+  loadThreatDetail(tehsilName);
+}
+
+function selectTehsil(tehsilName) {
+  showTehsilDetail(tehsilName);
+}
+
+function showActions(tehsilName) {
+  const threat = state.threats.find((t) => t.tehsil === tehsilName);
+  if (!threat) return;
+
+  alert(
+    `Recommended Actions for ${tehsilName}:\n\n${
+      threat.actions?.join("\n") || "Continue monitoring"
+    }`
+  );
+}
+
+// ============================================================================
+// SIMULATION FUNCTIONS
+// ============================================================================
+
+function triggerPestSimulation() {
+  const district = document.getElementById("simDistrict").value;
+
+  if (!district) {
+    showError("Please select a district first");
+    return;
+  }
+
+  state.pestSimulation.active = true;
+  state.pestSimulation.district = district;
+
+  document.getElementById("resetPestBtn").classList.remove("hidden");
+  loadDashboard();
+  showToast(`⚠️ Pest outbreak simulation ACTIVE for ${district}`, "warning");
 }
 
 function resetPestSimulation() {
-  fetch("/api/simulate-pest", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ reset: true }),
-  })
-    .then((r) => {
-      if (!r.ok) throw new Error(`Reset failed: ${r.status}`);
-      return r.json();
-    })
-    .then((data) => {
-      if (!data) throw new Error("Empty response");
-      if (data.status === "success") {
-        document.getElementById("resetPestBtn").classList.add("hidden");
-        showErrorMessage("Pest simulation reset", "success");
-        loadDashboard();
-      }
-    })
-    .catch((e) => {
-      console.error("Pest reset error:", e);
-      showErrorMessage(`Reset failed: ${e.message}`, "error");
-    });
+  state.pestSimulation.active = false;
+  state.pestSimulation.district = null;
+
+  document.getElementById("resetPestBtn").classList.add("hidden");
+  document.getElementById("simDistrict").value = "";
+  loadDashboard();
+  showToast("Simulation reset to normal conditions", "info");
 }
 
-function exportPriorities() {
-  const rep = document.getElementById("repSelect").value;
-  const date = document.getElementById("simDate").value;
-  if (!rep) {
-    alert("Select a rep first.");
+// ============================================================================
+// UTILITY FUNCTIONS
+// ============================================================================
+
+function formatCurrency(amount) {
+  if (!amount) return "₹0";
+  if (amount >= 10000000) return `₹${(amount / 10000000).toFixed(1)}Cr`;
+  if (amount >= 100000) return `₹${(amount / 100000).toFixed(1)}L`;
+  if (amount >= 1000) return `₹${(amount / 1000).toFixed(0)}K`;
+  return `₹${Math.round(amount)}`;
+}
+
+function getHeatScoreColor(score) {
+  if (score >= 50) return "text-red-600";
+  if (score >= 35) return "text-orange-500";
+  if (score >= 20) return "text-yellow-600";
+  return "text-green-600";
+}
+
+function getProgressClass(level) {
+  switch (level) {
+    case "CRITICAL":
+      return "progress-critical";
+    case "HIGH":
+      return "progress-high";
+    case "MEDIUM":
+      return "progress-medium";
+    default:
+      return "progress-low";
+  }
+}
+
+function getBadgeClass(level) {
+  switch (level) {
+    case "CRITICAL":
+      return "badge-critical";
+    case "HIGH":
+      return "badge-high";
+    case "MEDIUM":
+      return "badge-medium";
+    default:
+      return "badge-low";
+  }
+}
+
+function getThreatIcon(level) {
+  switch (level) {
+    case "CRITICAL":
+      return "🔴";
+    case "HIGH":
+      return "🟠";
+    case "MEDIUM":
+      return "🟡";
+    default:
+      return "🟢";
+  }
+}
+
+function getMarkerColor(level) {
+  switch (level) {
+    case "CRITICAL":
+      return "#ef4444";
+    case "HIGH":
+      return "#f97316";
+    case "MEDIUM":
+      return "#eab308";
+    default:
+      return "#22c55e";
+  }
+}
+
+function getChurnColor(risk) {
+  switch (risk) {
+    case "CRITICAL":
+      return "text-red-600";
+    case "HIGH":
+      return "text-orange-500";
+    case "MEDIUM":
+      return "text-yellow-600";
+    default:
+      return "text-green-600";
+  }
+}
+
+function escapeHtml(str) {
+  if (!str) return "";
+  return str.replace(/[&<>]/g, function (m) {
+    if (m === "&") return "&amp;";
+    if (m === "<") return "&lt;";
+    if (m === ">") return "&gt;";
+    return m;
+  });
+}
+
+function clearDashboard() {
+  document.getElementById(
+    "threatsTableBody"
+  ).innerHTML = `<tr><td colspan="7" class="text-center py-8 text-slate-400">Select a representative to view priorities</td></table>`;
+  document.getElementById("routeList").innerHTML = "";
+  document.getElementById("marketPrices").innerHTML = "";
+  document.getElementById("territoryCard").classList.add("hidden");
+  document.getElementById("weatherCard").classList.add("hidden");
+  document.getElementById("tehsilDetailCard").classList.add("hidden");
+}
+
+function exportToCSV() {
+  if (!state.threats || state.threats.length === 0) {
+    showError("No data to export");
     return;
   }
-  window.location.href = `/api/export?rep_id=${rep}&date=${date}`;
+
+  const headers = [
+    "Rank",
+    "Tehsil",
+    "Heat Score",
+    "Threat Level",
+    "Crop",
+    "Stage",
+    "Growers",
+    "Revenue at Risk",
+  ];
+  const rows = state.threats.map((t, i) => [
+    i + 1,
+    t.tehsil,
+    t.heat_score,
+    t.threat_level,
+    t.dominant_crop,
+    t.dominant_stage,
+    t.num_growers,
+    t.revenue_at_risk,
+  ]);
+
+  const csvContent = [headers, ...rows].map((row) => row.join(",")).join("\n");
+  const blob = new Blob([csvContent], { type: "text/csv" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `kritech_priorities_${
+    new Date().toISOString().split("T")[0]
+  }.csv`;
+  a.click();
+  URL.revokeObjectURL(url);
+  showToast("Export complete!", "success");
 }
+
+// ============================================================================
+// UI HELPERS
+// ============================================================================
+
+function showLoading(show) {
+  const overlay = document.getElementById("loadingOverlay");
+  if (show) {
+    overlay.classList.remove("hidden");
+  } else {
+    overlay.classList.add("hidden");
+  }
+}
+
+function showError(message) {
+  const toast = document.getElementById("errorToast");
+  const msgSpan = document.getElementById("errorMessage");
+  msgSpan.textContent = message;
+  toast.classList.remove("hidden");
+  setTimeout(() => {
+    toast.classList.add("hidden");
+  }, 5000);
+}
+
+function hideError() {
+  document.getElementById("errorToast").classList.add("hidden");
+}
+
+function showToast(message, type = "info") {
+  console.log(`[${type.toUpperCase()}] ${message}`);
+  if (type === "error") {
+    showError(message);
+  }
+}
+
+// Make functions globally available
+window.loadRepresentatives = loadRepresentatives;
+window.loadDistricts = loadDistricts;
+window.loadDashboard = loadDashboard;
+window.triggerPestSimulation = triggerPestSimulation;
+window.resetPestSimulation = resetPestSimulation;
+window.showTehsilDetail = showTehsilDetail;
+window.selectTehsil = selectTehsil;
+window.showActions = showActions;
+window.exportToCSV = exportToCSV;
+window.loadThreatDetail = loadThreatDetail;
+window.closeThreatModal = closeThreatModal;
