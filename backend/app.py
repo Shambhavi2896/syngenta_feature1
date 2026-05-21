@@ -41,7 +41,6 @@ def init():
         'reps': dm.ALL_REPS,
         'total_growers': len(dm.growers),
         'districts': districts,
-        'latest_data_date': dm.LATEST_DATA_DATE
     })
 
 @app.route('/api/warmup')
@@ -49,90 +48,128 @@ def warmup():
     dm.ensure_data_loaded()
     return jsonify({'status': 'ready', 'message': 'Warmup complete', 'reps': dm.ALL_REPS})
 
+def parse_target_date(sim_date_str):
+    if not sim_date_str or not str(sim_date_str).strip():
+        sim_date_str = dm.LATEST_DATA_DATE or '2026-03-21'
+    try:
+        parsed = pd.Timestamp(sim_date_str)
+        if parsed is pd.NaT or pd.isna(parsed):
+            raise ValueError("Invalid date")
+        return parsed.date()
+    except Exception:
+        return pd.Timestamp(dm.LATEST_DATA_DATE or '2026-03-21').date()
+
 @app.route('/api/dashboard/<rep_id>')
 def dashboard(rep_id):
-    sim_date_str = request.args.get('date', dm.LATEST_DATA_DATE)
     try:
-        target_date = pd.Timestamp(sim_date_str).date()
-    except:
-        target_date = pd.Timestamp(dm.LATEST_DATA_DATE).date()
+        sim_date_str = request.args.get('date')
+        target_date = parse_target_date(sim_date_str)
 
-    state, district = dm.get_rep_info(rep_id)
-    tehsils = dm.get_rep_tehsils(rep_id)
+        state, district = dm.get_rep_info(rep_id)
+        tehsils = dm.get_rep_tehsils(rep_id)
 
-    threats = []
-    for t in tehsils:
-        t_ret = dm.retailers[dm.retailers['tehsil'] == t] if not dm.retailers.empty else pd.DataFrame()
-        t_district = t_ret.iloc[0]['district'] if len(t_ret) > 0 else district
-        threat = compute_tehsil_threat(t, t_district, target_date)
-        if threat:
-            threats.append(threat)
+        threats = []
+        for t in tehsils:
+            t_ret = dm.retailers[dm.retailers['tehsil'] == t] if not dm.retailers.empty else pd.DataFrame()
+            t_district = t_ret.iloc[0]['district'] if len(t_ret) > 0 else district
+            threat = compute_tehsil_threat(t, t_district, target_date)
+            if threat:
+                threats.append(threat)
 
-    threats = post_process_threats(threats)
+        threats = post_process_threats(threats)
 
-    route_result = optimize_route(threats)
-    route_stops, monitoring_only = route_result
+        route_result = optimize_route(threats)
+        route_stops, monitoring_only = route_result
 
-    # Cost of inaction from highest-scoring tehsil (Bug 2)
-    consequence = simulate_inaction(threats[0]) if threats else None
+        # Cost of inaction from highest-scoring tehsil (Bug 2)
+        consequence = simulate_inaction(threats[0]) if threats else None
 
-    total_critical = sum(1 for t in threats if t['threat_level'] == 'CRITICAL')
-    total_high = sum(1 for t in threats if t['threat_level'] == 'HIGH')
-    total_medium = sum(1 for t in threats if t['threat_level'] == 'MEDIUM')
-    total_revenue_risk = sum(t['revenue_at_risk'] for t in threats)
-    total_stockouts = sum(t['stockouts'] for t in threats)
+        total_critical = sum(1 for t in threats if t['threat_level'] == 'CRITICAL')
+        total_high = sum(1 for t in threats if t['threat_level'] == 'HIGH')
+        total_medium = sum(1 for t in threats if t['threat_level'] == 'MEDIUM')
+        total_revenue_risk = sum(t['revenue_at_risk'] for t in threats)
+        total_stockouts = sum(t['stockouts'] for t in threats)
 
-    _, weather_detail = compute_weather_risk(district)
-    weather_interp = get_weather_interpretation(weather_detail)
+        _, weather_detail = compute_weather_risk(district)
+        weather_interp = get_weather_interpretation(weather_detail)
 
-    market = {}
-    for crop_name, pdata in dm.price_lookup.items():
-        fluct = math.sin(time.time() / 1800) * 0.03
-        market[crop_name] = {
-            'price': round(pdata['price'] * (1 + fluct)),
-            'change': round(pdata['change'] + fluct * 100, 2),
-            'trend': pdata['trend']
+        market = {}
+        for crop_name, pdata in dm.price_lookup.items():
+            fluct = math.sin(time.time() / 1800) * 0.03
+            market[crop_name] = {
+                'price': round(pdata['price'] * (1 + fluct)),
+                'change': round(pdata['change'] + fluct * 100, 2),
+                'trend': pdata['trend']
+            }
+
+        # Campaign stats with open_rate and click_rate (Bug 4)
+        rep_grower_ids = dm.growers[dm.growers['tehsil'].isin(tehsils)]['grower_id'].tolist() if not dm.growers.empty else []
+        rep_campaigns = dm.whatsapp[dm.whatsapp['grower_id'].isin(rep_grower_ids)] if not dm.whatsapp.empty else pd.DataFrame()
+        sent = len(rep_campaigns)
+        delivered = int(rep_campaigns['delivered_status'].sum()) if not rep_campaigns.empty else 0
+        opened = int(rep_campaigns['opened_status'].sum()) if not rep_campaigns.empty else 0
+        clicked = int(rep_campaigns['clicked_status'].sum()) if not rep_campaigns.empty else 0
+        campaign_stats = {
+            'sent': sent, 'delivered': delivered, 'opened': opened, 'clicked': clicked,
+            'open_rate': round(opened / max(delivered, 1) * 100, 1),
+            'click_rate': round(clicked / max(opened, 1) * 100, 1),
+            'cvr': round(clicked / max(delivered, 1) * 100, 1),
         }
 
-    # Campaign stats with open_rate and click_rate (Bug 4)
-    rep_grower_ids = dm.growers[dm.growers['tehsil'].isin(tehsils)]['grower_id'].tolist() if not dm.growers.empty else []
-    rep_campaigns = dm.whatsapp[dm.whatsapp['grower_id'].isin(rep_grower_ids)] if not dm.whatsapp.empty else pd.DataFrame()
-    sent = len(rep_campaigns)
-    delivered = int(rep_campaigns['delivered_status'].sum()) if not rep_campaigns.empty else 0
-    opened = int(rep_campaigns['opened_status'].sum()) if not rep_campaigns.empty else 0
-    clicked = int(rep_campaigns['clicked_status'].sum()) if not rep_campaigns.empty else 0
-    campaign_stats = {
-        'sent': sent, 'delivered': delivered, 'opened': opened, 'clicked': clicked,
-        'open_rate': round(opened / max(delivered, 1) * 100, 1),
-        'click_rate': round(clicked / max(opened, 1) * 100, 1),
-        'cvr': round(clicked / max(delivered, 1) * 100, 1),
-    }
+        # District-level disease context (Bug 8)
+        district_diseases = []
+        for crop, info in dm.pest_lookup.get(district, {}).items():
+            district_diseases.append({
+                'crop': crop, 'disease': info.get('disease', ''),
+                'risk_level': info.get('severity', 'LOW'),
+                'probability': info.get('probability', 0)
+            })
 
-    # District-level disease context (Bug 8)
-    district_diseases = []
-    for crop, info in dm.pest_lookup.get(district, {}).items():
-        district_diseases.append({
-            'crop': crop, 'disease': info.get('disease', ''),
-            'risk_level': info.get('severity', 'LOW'),
-            'probability': info.get('probability', 0)
+        rep_lat, rep_lng = dm.get_fallback_coords(district, district)
+
+        return jsonify({
+            'rep_id': rep_id, 'state': state, 'district': district,
+            'lat': rep_lat, 'lng': rep_lng, 'tehsils': tehsils,
+            'last_updated': datetime.now().isoformat(),
+            'stats': {
+                'critical': total_critical, 'high': total_high, 'medium': total_medium,
+                'revenue_risk': total_revenue_risk, 'stockouts': total_stockouts
+            },
+            'threats': threats, 'route': route_stops, 'monitoring_only': monitoring_only,
+            'consequence': consequence,
+            'weather': weather_detail, 'weather_interpretation': weather_interp,
+            'market': market, 'campaign': campaign_stats,
+            'district_diseases': district_diseases
         })
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return jsonify({'status': 'error', 'message': str(e)}), 500
 
-    rep_lat, rep_lng = dm.get_fallback_coords(district, district)
-
-    return jsonify({
-        'rep_id': rep_id, 'state': state, 'district': district,
-        'lat': rep_lat, 'lng': rep_lng, 'tehsils': tehsils,
-        'last_updated': datetime.now().isoformat(),
-        'stats': {
-            'critical': total_critical, 'high': total_high, 'medium': total_medium,
-            'revenue_risk': total_revenue_risk, 'stockouts': total_stockouts
-        },
-        'threats': threats, 'route': route_stops, 'monitoring_only': monitoring_only,
-        'consequence': consequence,
-        'weather': weather_detail, 'weather_interpretation': weather_interp,
-        'market': market, 'campaign': campaign_stats,
-        'district_diseases': district_diseases
-    })
+@app.route('/api/threat/<tehsil>/<district>')
+def threat_detail(tehsil, district):
+    """Get detailed threat intelligence for a specific tehsil including pest climate intel."""
+    try:
+        sim_date_str = request.args.get('date')
+        target_date = parse_target_date(sim_date_str)
+        
+        threat = compute_tehsil_threat(tehsil, district, target_date)
+        if not threat:
+            return jsonify({'status': 'error', 'message': f'No threat data for {tehsil}'}), 404
+        
+        return jsonify({
+            'status': 'success',
+            'threat': threat,
+            'pest_climate_intel': threat.get('pest_climate_intel'),
+            'agri_advisory': threat.get('agri_advisory'),
+            'fungicide_recs': threat.get('fungicide_recs'),
+            'visit_scenarios': threat.get('visit_scenarios'),
+            'concerns': threat.get('concerns'),
+            'actions': threat.get('actions'),
+            'timestamp': datetime.now().isoformat()
+        })
+    except Exception as e:
+        return jsonify({'status': 'error', 'message': str(e)}), 500
 
 @app.route('/api/ml-weights')
 def ml_weights():
@@ -165,13 +202,10 @@ def simulate_pest():
 @app.route('/api/export')
 def export_priorities():
     rep_id = request.args.get('rep_id')
-    sim_date_str = request.args.get('date', dm.LATEST_DATA_DATE)
+    sim_date_str = request.args.get('date')
     if not rep_id:
         return jsonify({'status': 'error', 'message': 'Rep ID required.'}), 400
-    try:
-        target_date = pd.Timestamp(sim_date_str).date()
-    except:
-        target_date = pd.Timestamp(dm.LATEST_DATA_DATE).date()
+    target_date = parse_target_date(sim_date_str)
 
     state, district = dm.get_rep_info(rep_id)
     tehsils = dm.get_rep_tehsils(rep_id)

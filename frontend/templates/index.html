@@ -2,23 +2,38 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>KRITECH — Dynamic Prioritization Engine</title>
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1.0, user-scalable=yes"
+    />
+    <title>KRITECH — Crop Intelligence & Dynamic Prioritization Engine</title>
     <meta
       name="description"
-      content="KRITECH Dynamic Prioritization Engine for Syngenta Field Force Intelligence"
+      content="AI-powered field force intelligence for crop disease management"
     />
+
+    <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
+
+    <!-- Leaflet.js for Maps -->
     <link
       rel="stylesheet"
       href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
     />
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+    <!-- Chart.js for Analytics -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+
+    <!-- Font Awesome Icons -->
     <link
-      href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Outfit:wght@400;500;600;700;800&display=swap"
       rel="stylesheet"
+      href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css"
     />
+
+    <!-- Custom Styles -->
+    <link rel="stylesheet" href="/static/css/style.css" />
+
     <script>
       tailwind.config = {
         theme: {
@@ -27,536 +42,469 @@
               sans: ["Inter", "sans-serif"],
               display: ["Outfit", "sans-serif"],
             },
+            animation: {
+              "pulse-slow": "pulse 3s cubic-bezier(0.4, 0, 0.6, 1) infinite",
+              "fade-in": "fadeIn 0.5s ease-out",
+              "slide-up": "slideUp 0.3s ease-out",
+            },
+            keyframes: {
+              fadeIn: {
+                "0%": { opacity: "0" },
+                "100%": { opacity: "1" },
+              },
+              slideUp: {
+                "0%": { transform: "translateY(10px)", opacity: "0" },
+                "100%": { transform: "translateY(0)", opacity: "1" },
+              },
+            },
           },
         },
       };
     </script>
-    <link rel="stylesheet" href="/static/css/style.css?v=5" />
   </head>
-  <body class="text-slate-800 antialiased">
-    <!-- Error Message Box -->
-    <div
-      id="errorMessage"
-      class="fixed top-4 left-4 right-4 z-[999] text-red-600 bg-red-50 border border-red-200 p-3 rounded-lg text-sm font-medium hidden"
-    ></div>
-
-    <!-- Top Bar -->
-    <div
-      class="border-b border-slate-100 bg-white/75 backdrop-blur-md px-6 py-4 flex items-center justify-between sticky top-0 z-50 shadow-sm"
+  <body
+    class="bg-gradient-to-br from-slate-50 to-slate-100 font-sans antialiased"
+  >
+    <!-- ==================== TOP NAVIGATION BAR ==================== -->
+    <nav
+      class="fixed top-0 left-0 right-0 z-50 bg-white/90 backdrop-blur-md border-b border-slate-200 shadow-sm"
     >
-      <div class="flex items-center gap-3">
-        <div
-          class="w-9 h-9 rounded-xl bg-gradient-to-br from-teal-400 to-indigo-500 flex items-center justify-center text-base font-bold text-white shadow-md shadow-indigo-100"
-        >
-          K
+      <div
+        class="max-w-[1600px] mx-auto px-4 sm:px-6 py-3 flex items-center justify-between"
+      >
+        <!-- Logo -->
+        <div class="flex items-center gap-3">
+          <div
+            class="w-10 h-10 rounded-xl bg-gradient-to-br from-emerald-500 to-teal-600 flex items-center justify-center shadow-lg"
+          >
+            <span class="text-white font-bold text-xl">K</span>
+          </div>
+          <div>
+            <h1 class="font-display font-bold text-xl text-slate-800">
+              KRITECH
+            </h1>
+            <p
+              class="text-[10px] uppercase tracking-wider text-slate-400 font-semibold"
+            >
+              Dynamic Prioritization Engine
+            </p>
+          </div>
         </div>
-        <div>
-          <h1
-            class="font-display text-xl font-extrabold gradient-text leading-tight tracking-tight"
+
+        <!-- Status Bar -->
+        <div class="flex items-center gap-4">
+          <div
+            class="hidden md:flex items-center gap-2 px-3 py-1.5 bg-emerald-50 rounded-full"
           >
-            KRITECH
-          </h1>
-          <p
-            class="text-sm text-slate-500 tracking-widest font-semibold uppercase"
+            <div
+              class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"
+            ></div>
+            <span class="text-xs font-semibold text-emerald-700"
+              >AI Active</span
+            >
+          </div>
+          <div class="flex items-center gap-2 text-sm text-slate-500">
+            <i class="fas fa-sync-alt text-xs"></i>
+            <span id="lastUpdated" class="text-xs">--:--:--</span>
+          </div>
+          <button
+            onclick="loadDashboard()"
+            class="px-3 py-1.5 text-sm font-medium text-slate-600 hover:text-slate-900 bg-slate-100 hover:bg-slate-200 rounded-lg transition"
           >
-            Dynamic Prioritization & Field Force Intelligence
-          </p>
+            <i class="fas fa-refresh mr-1"></i> Refresh
+          </button>
         </div>
       </div>
-      <div class="flex items-center gap-3">
-        <span
-          id="lastUpdated"
-          class="text-xs text-slate-400 font-medium hidden"
-          >Updated: --</span
-        >
-        <button
-          onclick="loadDashboard()"
-          class="text-xs text-slate-600 bg-slate-100/80 hover:bg-slate-200 px-3 py-1.5 rounded-full font-semibold border border-slate-200 transition"
-        >
-          Refresh with Live Weather
-        </button>
+    </nav>
+
+    <!-- ==================== MAIN CONTAINER ==================== -->
+    <div class="max-w-[1600px] mx-auto px-4 sm:px-6 pt-20 pb-8">
+      <!-- Error Toast -->
+      <div id="errorToast" class="fixed top-20 right-4 z-50 hidden">
         <div
-          class="flex items-center gap-2 bg-indigo-50/50 border border-indigo-100/50 px-3 py-1.5 rounded-full"
+          class="bg-red-500 text-white px-4 py-3 rounded-lg shadow-lg flex items-center gap-3 animate-slide-up"
+        >
+          <i class="fas fa-exclamation-circle"></i>
+          <span id="errorMessage"></span>
+          <button onclick="hideError()" class="ml-2">&times;</button>
+        </div>
+      </div>
+
+      <!-- Loading Overlay -->
+      <div
+        id="loadingOverlay"
+        class="fixed inset-0 bg-black/20 z-40 flex items-center justify-center hidden"
+      >
+        <div
+          class="bg-white rounded-2xl p-6 shadow-xl flex flex-col items-center gap-3"
         >
           <div
-            id="statusDot"
-            class="w-2 h-2 rounded-full bg-teal-500 animate-pulse"
+            class="w-10 h-10 border-4 border-emerald-500 border-t-transparent rounded-full animate-spin"
           ></div>
-          <span
-            class="text-xs font-semibold text-slate-600 tracking-wide uppercase"
-            >AI Active</span
-          >
+          <p class="text-slate-600 font-medium">Loading intelligence...</p>
         </div>
-        <span
-          class="text-xs font-bold text-slate-700 bg-slate-100/80 px-3 py-1.5 rounded-full shadow-inner"
-          id="clockDisplay"
-          >--:--</span
-        >
       </div>
-    </div>
 
-    <div
-      class="max-w-[1520px] mx-auto px-6 py-6 min-h-[calc(100vh-92px)] grid grid-cols-1 lg:grid-cols-5 gap-6"
-    >
-      <!-- LEFT SIDEBAR -->
-      <div class="lg:col-span-1 space-y-5">
-        <div class="glass rounded-2xl p-5 glow-teal">
-          <label
-            class="text-sm text-indigo-600 uppercase tracking-widest font-bold block mb-2"
-            >Field Rep Login</label
-          >
-          <select
-            id="repSelect"
-            onchange="loadDashboard()"
-            class="w-full px-4 py-3 rounded-xl border border-indigo-100 text-slate-700 text-sm outline-none transition-all cursor-pointer mb-4 shadow-sm bg-white font-medium"
-          >
-            <option value="">Loading...</option>
-          </select>
-          <label
-            class="text-sm text-indigo-600 uppercase tracking-widest font-bold block mb-2"
-            >Simulation Date</label
-          >
-          <input
-            type="date"
-            id="simDate"
-            onchange="loadDashboard()"
-            class="w-full px-4 py-3 rounded-xl border border-indigo-100 text-slate-700 text-sm outline-none transition-all cursor-pointer shadow-sm bg-white"
-          />
-        </div>
-
-        <!-- Pest Outbreak Simulator -->
-        <div
-          class="glass rounded-2xl p-5 border-l-4 border-red-500 bg-red-50/10"
-        >
-          <label
-            class="text-sm text-red-600 uppercase tracking-widest font-bold block mb-2"
-            >Simulate Outbreak Bulletin</label
-          >
-          <p class="text-sm text-slate-500 mb-3 leading-relaxed">
-            Inject 40% pest risk boost for a district. Watch scores change in
-            real-time.
-          </p>
-          <select
-            id="simDistrict"
-            class="w-full px-3 py-2 rounded-lg border border-red-200 text-slate-700 text-xs outline-none cursor-pointer bg-white mb-2"
-          >
-            <option value="">Loading districts...</option>
-          </select>
-          <div class="flex gap-2">
-            <button
-              onclick="triggerPestSimulation()"
-              class="flex-1 px-3 py-2 bg-gradient-to-r from-red-500 to-rose-600 hover:from-red-600 hover:to-rose-700 text-white font-bold text-sm rounded-lg shadow-sm uppercase tracking-wider transition-all"
-            >
-              ⚠ Simulate
-            </button>
-            <button
-              id="resetPestBtn"
-              onclick="resetPestSimulation()"
-              class="hidden px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-600 font-bold text-sm rounded-lg border border-slate-200 uppercase tracking-wider transition-all"
-            >
-              Reset
-            </button>
-          </div>
-        </div>
-
-        <!-- Territory Intel -->
-        <div
-          id="sideInfo"
-          class="glass rounded-2xl p-5 space-y-3 hidden fade-up"
-        >
-          <h3
-            class="text-sm text-slate-500 uppercase tracking-widest font-bold border-b border-indigo-50/50 pb-2"
-          >
-            Territory Intel
-          </h3>
-          <div>
-            <div class="text-xs text-slate-500 uppercase font-semibold">
-              State
-            </div>
-            <div id="iState" class="font-bold text-slate-800 text-sm">-</div>
-          </div>
-          <div>
-            <div class="text-xs text-slate-500 uppercase font-semibold">
-              District
-            </div>
-            <div id="iDistrict" class="font-bold text-slate-800 text-sm">-</div>
-          </div>
-          <div>
-            <div class="text-xs text-slate-500 uppercase font-semibold">
-              Tehsils
-            </div>
-            <div id="iTehsils" class="font-bold text-slate-800 text-sm">-</div>
-          </div>
-          <div>
-            <div class="text-xs text-slate-500 uppercase font-semibold">
-              Growers
-            </div>
-            <div id="iGrowers" class="font-bold text-slate-800 text-sm">-</div>
-          </div>
-        </div>
-
-        <!-- Weather -->
-        <div
-          id="sideWeather"
-          class="glass rounded-2xl p-5 space-y-3 hidden fade-up"
-        >
+      <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
+        <!-- ==================== LEFT SIDEBAR (3 cols) ==================== -->
+        <div class="lg:col-span-3 space-y-5">
+          <!-- Rep Selection Card -->
           <div
-            class="flex justify-between items-center border-b border-indigo-50/50 pb-2"
+            class="bg-white rounded-2xl shadow-sm border border-slate-200 p-5 hover:shadow-md transition"
+          >
+            <label
+              class="text-xs font-bold uppercase tracking-wider text-indigo-600 block mb-2"
+            >
+              <i class="fas fa-user-circle mr-1"></i> Field Representative
+            </label>
+            <select
+              id="repSelect"
+              onchange="loadDashboard()"
+              class="w-full px-4 py-2.5 rounded-xl border border-slate-200 text-sm focus:ring-2 focus:ring-emerald-500 focus:border-transparent transition"
+            >
+              <option value="">Select Representative...</option>
+            </select>
+
+            <label
+              class="text-xs font-bold uppercase tracking-wider text-indigo-600 block mt-4 mb-2"
+            >
+              <i class="fas fa-calendar-alt mr-1"></i> Simulation Date
+            </label>
+            <input
+              type="date"
+              id="simDate"
+              onchange="loadDashboard()"
+              class="w-full px-4 py-2.5 rounded-xl border border-slate-200 text-sm focus:ring-2 focus:ring-emerald-500 transition"
+            />
+          </div>
+
+          <!-- Pest Simulator Card -->
+          <div
+            class="bg-gradient-to-r from-red-50 to-orange-50 rounded-2xl border border-red-200 p-5"
+          >
+            <div class="flex items-center gap-2 mb-3">
+              <i class="fas fa-biohazard text-red-500"></i>
+              <label
+                class="text-xs font-bold uppercase tracking-wider text-red-700"
+                >Outbreak Simulator</label
+              >
+            </div>
+            <p class="text-xs text-slate-600 mb-3">
+              Simulate a 40% pest risk boost for any district
+            </p>
+            <select
+              id="simDistrict"
+              class="w-full px-3 py-2 rounded-lg border border-red-200 text-sm mb-2 bg-white"
+            >
+              <option value="">Select district...</option>
+            </select>
+            <div class="flex gap-2">
+              <button
+                onclick="triggerPestSimulation()"
+                class="flex-1 px-3 py-2 bg-red-500 hover:bg-red-600 text-white font-semibold text-sm rounded-lg transition"
+              >
+                <i class="fas fa-flask mr-1"></i> Simulate
+              </button>
+              <button
+                id="resetPestBtn"
+                onclick="resetPestSimulation()"
+                class="hidden px-3 py-2 bg-slate-200 hover:bg-slate-300 text-slate-700 font-semibold text-sm rounded-lg transition"
+              >
+                <i class="fas fa-undo-alt mr-1"></i> Reset
+              </button>
+            </div>
+          </div>
+
+          <!-- Territory Intel Card -->
+          <div
+            id="territoryCard"
+            class="bg-white rounded-2xl shadow-sm border border-slate-200 p-5 hidden"
           >
             <h3
-              class="text-sm text-slate-500 uppercase tracking-widest font-bold"
+              class="text-xs font-bold uppercase tracking-wider text-slate-400 mb-3"
             >
-              Environment
+              <i class="fas fa-globe-asia mr-1"></i> Territory Intel
             </h3>
-            <button
-              onclick="loadDashboard()"
-              class="text-xs text-teal-600 font-bold uppercase hover:text-teal-800 transition-colors"
-            >
-              ↻ Refresh
-            </button>
-          </div>
-          <div class="grid grid-cols-2 gap-3">
-            <div
-              class="bg-indigo-50/20 rounded-lg p-2.5 border border-indigo-50"
-            >
-              <div class="text-[8px] text-slate-500 uppercase font-bold">
-                Humidity
+            <div class="space-y-2 text-sm">
+              <div class="flex justify-between">
+                <span class="text-slate-500">State:</span
+                ><span id="infoState" class="font-semibold">-</span>
               </div>
-              <div
-                id="wHumidity"
-                class="font-display text-base font-bold text-teal-600 mt-0.5"
-              >
-                -
+              <div class="flex justify-between">
+                <span class="text-slate-500">District:</span
+                ><span id="infoDistrict" class="font-semibold">-</span>
               </div>
-            </div>
-            <div
-              class="bg-indigo-50/20 rounded-lg p-2.5 border border-indigo-50"
-            >
-              <div class="text-[8px] text-slate-500 uppercase font-bold">
-                Rainfall
+              <div class="flex justify-between">
+                <span class="text-slate-500">Tehsils:</span
+                ><span id="infoTehsils" class="font-semibold">-</span>
               </div>
-              <div
-                id="wRain"
-                class="font-display text-base font-bold text-indigo-600 mt-0.5"
-              >
-                -
-              </div>
-            </div>
-            <div
-              class="bg-indigo-50/20 rounded-lg p-2.5 border border-indigo-50"
-            >
-              <div class="text-[8px] text-slate-500 uppercase font-bold">
-                Temperature
-              </div>
-              <div
-                id="wTemp"
-                class="font-display text-base font-bold text-rose-500 mt-0.5"
-              >
-                -
-              </div>
-            </div>
-            <div
-              class="bg-indigo-50/20 rounded-lg p-2.5 border border-indigo-50"
-            >
-              <div class="text-[8px] text-slate-500 uppercase font-bold">
-                Wind Speed
-              </div>
-              <div
-                id="wLeaf"
-                class="font-display text-base font-bold text-emerald-600 mt-0.5"
-              >
-                -
+              <div class="flex justify-between">
+                <span class="text-slate-500">Growers:</span
+                ><span id="infoGrowers" class="font-semibold">-</span>
               </div>
             </div>
           </div>
+
+          <!-- Live Weather Card -->
           <div
-            id="weatherInterpretation"
-            class="weather-alert text-sm leading-relaxed hidden font-medium"
-          ></div>
-          <div
-            id="weatherForecast"
-            class="bg-slate-50 rounded-2xl border border-slate-200 p-4 mt-4 hidden"
+            id="weatherCard"
+            class="bg-white rounded-2xl shadow-sm border border-slate-200 p-5 hidden"
           >
-            <div
-              class="text-sm uppercase tracking-widest text-slate-500 font-semibold mb-3"
-            >
-              3-Day Weather Risk Forecast
+            <div class="flex justify-between items-center mb-3">
+              <h3
+                class="text-xs font-bold uppercase tracking-wider text-slate-400"
+              >
+                <i class="fas fa-cloud-sun-rain mr-1"></i> Live Environment
+              </h3>
+              <i
+                id="weatherIcon"
+                class="fas fa-cloud-sun text-2xl text-amber-500"
+              ></i>
+            </div>
+            <div class="grid grid-cols-2 gap-3 mb-3">
+              <div class="bg-slate-50 rounded-lg p-2 text-center">
+                <div class="text-[10px] text-slate-400">HUMIDITY</div>
+                <div
+                  id="weatherHumidity"
+                  class="font-bold text-lg text-emerald-600"
+                >
+                  --%
+                </div>
+              </div>
+              <div class="bg-slate-50 rounded-lg p-2 text-center">
+                <div class="text-[10px] text-slate-400">TEMP</div>
+                <div id="weatherTemp" class="font-bold text-lg text-orange-600">
+                  --°C
+                </div>
+              </div>
+              <div class="bg-slate-50 rounded-lg p-2 text-center">
+                <div class="text-[10px] text-slate-400">RAIN</div>
+                <div id="weatherRain" class="font-bold text-lg text-blue-600">
+                  --mm
+                </div>
+              </div>
+              <div class="bg-slate-50 rounded-lg p-2 text-center">
+                <div class="text-[10px] text-slate-400">WIND</div>
+                <div id="weatherWind" class="font-bold text-lg text-slate-600">
+                  --km/h
+                </div>
+              </div>
             </div>
             <div
-              id="forecastList"
-              class="space-y-3 text-sm text-slate-700"
+              id="weatherAlert"
+              class="text-xs p-2 rounded-lg bg-amber-50 text-amber-700 hidden"
             ></div>
           </div>
+
+          <!-- Selected Tehsil Detail -->
           <div
-            id="pestAdvisory"
-            class="bg-rose-50/60 rounded-2xl border border-rose-100 p-4 mt-4 hidden"
+            id="tehsilDetailCard"
+            class="bg-white rounded-2xl shadow-sm border-l-4 border-indigo-500 p-5 hidden"
           >
-            <div
-              class="text-sm uppercase tracking-widest text-rose-600 font-semibold mb-2"
+            <h3
+              class="text-xs font-bold uppercase tracking-wider text-indigo-600 mb-3"
             >
-              Live Pest Advisory
-            </div>
-            <div
-              id="pestAdvisoryText"
-              class="text-sm text-slate-700 leading-relaxed"
-            ></div>
+              <i class="fas fa-map-marker-alt mr-1"></i> Selected Tehsil
+            </h3>
+            <div id="tehsilDetailContent" class="space-y-2 text-sm"></div>
           </div>
         </div>
 
-        <!-- Tehsil Detail (clickable map) -->
-        <div
-          id="tehsilDetail"
-          class="glass rounded-2xl p-5 space-y-3 hidden fade-up border-l-4 border-indigo-500"
-        >
-          <h3
-            class="text-sm text-indigo-600 uppercase tracking-widest font-bold border-b border-indigo-50/50 pb-2"
-          >
-            Selected Tehsil Detail
-          </h3>
-          <div id="tehsilDetailContent"></div>
-        </div>
-      </div>
-
-      <!-- MAIN CONTENT -->
-      <div class="lg:col-span-4 space-y-8">
-        <div class="flex justify-center py-8">
-          <div class="loader hidden" id="loader"></div>
-        </div>
-
-        <div id="dashboard" class="hidden space-y-8">
-          <!-- STAT CARDS -->
-          <div class="grid grid-cols-2 md:grid-cols-4 gap-5 fade-up">
+        <!-- ==================== MAIN CONTENT (9 cols) ==================== -->
+        <div class="lg:col-span-9 space-y-6">
+          <!-- Stats Row -->
+          <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
             <div
-              class="glass rounded-2xl p-5 border-l-4 border-red-500 bg-gradient-to-r from-red-50/10 to-transparent"
+              class="bg-white rounded-2xl shadow-sm p-4 border-l-4 border-red-500"
             >
-              <div
-                class="text-sm text-slate-500 uppercase tracking-wider font-bold"
-              >
+              <div class="text-xs text-slate-400 uppercase tracking-wider">
                 Critical Alerts
               </div>
-              <div
-                id="sCritical"
-                class="font-display text-3xl font-extrabold text-red-500 mt-1"
-              >
+              <div id="statCritical" class="text-3xl font-bold text-red-500">
                 0
               </div>
-              <div
-                id="sCriticalSub"
-                class="text-sm text-slate-500 mt-1 hidden"
-              ></div>
             </div>
             <div
-              class="glass rounded-2xl p-5 border-l-4 border-amber-500 bg-gradient-to-r from-amber-50/10 to-transparent"
+              class="bg-white rounded-2xl shadow-sm p-4 border-l-4 border-orange-500"
             >
-              <div
-                class="text-sm text-slate-500 uppercase tracking-wider font-bold"
-              >
+              <div class="text-xs text-slate-400 uppercase tracking-wider">
                 High Alerts
               </div>
-              <div
-                id="sHigh"
-                class="font-display text-3xl font-extrabold text-amber-600 mt-1"
-              >
+              <div id="statHigh" class="text-3xl font-bold text-orange-500">
                 0
               </div>
             </div>
             <div
-              class="glass rounded-2xl p-5 border-l-4 border-indigo-500 bg-gradient-to-r from-indigo-50/10 to-transparent"
+              class="bg-white rounded-2xl shadow-sm p-4 border-l-4 border-emerald-500"
             >
-              <div
-                class="text-sm text-slate-500 uppercase tracking-wider font-bold"
-              >
+              <div class="text-xs text-slate-400 uppercase tracking-wider">
                 Revenue at Risk
               </div>
-              <div
-                id="sRevenue"
-                class="font-display text-2xl font-extrabold text-indigo-600 mt-1"
-              >
-                -
+              <div id="statRevenue" class="text-xl font-bold text-emerald-600">
+                ₹0
               </div>
             </div>
             <div
-              class="glass rounded-2xl p-5 border-l-4 border-teal-500 bg-gradient-to-r from-teal-50/10 to-transparent"
+              class="bg-white rounded-2xl shadow-sm p-4 border-l-4 border-purple-500"
             >
-              <div
-                class="text-sm text-slate-500 uppercase tracking-wider font-bold"
-              >
-                Stockout Alerts
+              <div class="text-xs text-slate-400 uppercase tracking-wider">
+                Stockouts
               </div>
               <div
-                id="sStockouts"
-                class="font-display text-3xl font-extrabold text-teal-600 mt-1"
+                id="statStockouts"
+                class="text-3xl font-bold text-purple-500"
               >
                 0
-              </div>
-            </div>
-            <div
-              class="glass rounded-2xl p-5 border-l-4 border-slate-500 bg-gradient-to-r from-slate-50/10 to-transparent"
-            >
-              <div
-                class="text-sm text-slate-500 uppercase tracking-wider font-bold"
-              >
-                AI Confidence
-              </div>
-              <div
-                id="sAIConfidence"
-                class="font-display text-3xl font-extrabold text-slate-800 mt-1"
-              >
-                --%
               </div>
             </div>
           </div>
 
-          <!-- MAIN GRID -->
-          <div class="grid grid-cols-1 xl:grid-cols-3 gap-8">
-            <div class="xl:col-span-2 space-y-8">
-              <!-- MAP & TABLE -->
-              <div class="glass rounded-2xl p-6 fade-up">
-                <div
-                  class="flex items-center justify-between mb-5 flex-wrap gap-2"
-                >
-                  <h2 class="font-display text-lg font-bold text-slate-800">
-                    Territory Priority Map
-                  </h2>
-                  <div class="flex items-center gap-2">
-                    <button
-                      onclick="exportPriorities()"
-                      class="text-sm font-bold text-teal-700 bg-teal-50 hover:bg-teal-600 hover:text-white border border-teal-200 px-3 py-1.5 rounded-lg shadow-sm transition-all"
-                    >
-                      📥 Export CSV
-                    </button>
-                    <span
-                      class="text-sm text-slate-500 font-bold uppercase bg-slate-100 px-2.5 py-1.5 rounded-lg"
-                      >Ranked</span
-                    >
-                  </div>
-                </div>
-                <div
-                  id="map"
-                  class="w-full h-[320px] rounded-xl mb-6 border border-indigo-50 bg-slate-50 shadow-inner z-0"
-                ></div>
-                <div class="overflow-x-auto">
-                  <table class="w-full text-sm">
-                    <thead>
-                      <tr
-                        class="text-slate-500 border-b border-indigo-50/80 text-sm uppercase tracking-wider"
-                      >
-                        <th class="pb-3 text-left font-semibold">Tehsil</th>
-                        <th class="pb-3 text-left font-semibold">
-                          Score Breakdown
-                        </th>
-                        <th class="pb-3 text-left font-semibold">Level</th>
-                        <th class="pb-3 text-left font-semibold">Crop</th>
-                        <th class="pb-3 text-left font-semibold">
-                          Explanation
-                        </th>
-                      </tr>
-                    </thead>
-                    <tbody
-                      id="heatBody"
-                      class="divide-y divide-indigo-50/30 font-medium"
-                    ></tbody>
-                  </table>
-                </div>
-              </div>
+          <!-- Map Card -->
+          <div
+            class="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden"
+          >
+            <div class="p-4 border-b border-slate-100">
+              <h2 class="font-display font-bold text-slate-800">
+                <i class="fas fa-map-marked-alt text-indigo-500 mr-2"></i>
+                Territory Priority Map
+              </h2>
+              <p class="text-xs text-slate-400 mt-1">
+                Click on markers to view tehsil details
+              </p>
+            </div>
+            <div id="map" class="w-full h-[400px] z-0"></div>
+          </div>
 
-              <!-- SIGNAL INTELLIGENCE -->
-              <div class="glass rounded-2xl p-6 fade-up">
-                <div class="flex justify-between items-center mb-5">
-                  <h2 class="font-display text-lg font-bold text-slate-800">
-                    Signal Intelligence & AI Calibration
-                  </h2>
-                  <span
-                    class="px-3 py-1 rounded-full text-sm font-extrabold uppercase bg-indigo-50 text-indigo-700 border border-indigo-100"
-                    >RF Calibrated</span
-                  >
-                </div>
-                <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                  <div class="space-y-4 lg:col-span-1" id="intelGrid"></div>
-                  <div
-                    class="lg:col-span-1 bg-white rounded-xl p-4 border border-indigo-50 h-[260px] relative shadow-inner"
-                  >
-                    <canvas id="threatChart"></canvas>
-                  </div>
-                  <div
-                    class="lg:col-span-1 bg-indigo-50/20 rounded-xl p-4 border border-indigo-100/50 flex flex-col justify-between"
-                  >
-                    <div>
-                      <h4
-                        class="text-sm text-indigo-600 uppercase tracking-wider font-extrabold mb-1"
-                      >
-                        Random Forest Weight Learning
-                      </h4>
-                      <p class="text-xs text-slate-500 leading-relaxed mb-3">
-                        Trained on 500 historical visit outcomes.
-                      </p>
-                      <div class="space-y-2" id="mlWeightsBox"></div>
-                    </div>
-                    <div
-                      id="mlNote"
-                      class="text-xs text-indigo-700 bg-indigo-50 border border-indigo-100 p-2 rounded-lg font-semibold leading-relaxed mt-2"
-                    ></div>
-                  </div>
-                </div>
-              </div>
+          <!-- Threats Table -->
+          <div
+            class="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden"
+          >
+            <div
+              class="p-4 border-b border-slate-100 flex justify-between items-center"
+            >
+              <h2 class="font-display font-bold text-slate-800">
+                <i class="fas fa-chart-line text-emerald-500 mr-2"></i>
+                Prioritized Tehsils
+              </h2>
+              <button
+                onclick="exportToCSV()"
+                class="text-xs bg-slate-100 hover:bg-slate-200 px-3 py-1.5 rounded-lg transition"
+              >
+                <i class="fas fa-download mr-1"></i> Export CSV
+              </button>
+            </div>
+            <div class="overflow-x-auto">
+              <table class="w-full text-sm">
+                <thead class="bg-slate-50">
+                  <tr class="text-slate-500 text-xs uppercase tracking-wider">
+                    <th class="px-4 py-3 text-left">Rank</th>
+                    <th class="px-4 py-3 text-left">Tehsil</th>
+                    <th class="px-4 py-3 text-left">Score</th>
+                    <th class="px-4 py-3 text-left">Breakdown</th>
+                    <th class="px-4 py-3 text-left">Status</th>
+                    <th class="px-4 py-3 text-left">Crop/Stage</th>
+                    <th class="px-4 py-3 text-left">Actions</th>
+                  </tr>
+                </thead>
+                <tbody
+                  id="threatsTableBody"
+                  class="divide-y divide-slate-100"
+                ></tbody>
+              </table>
+            </div>
+          </div>
+
+          <!-- Two Column Bottom Section -->
+          <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <!-- Route Optimization -->
+            <div
+              class="bg-white rounded-2xl shadow-sm border border-slate-200 p-5"
+            >
+              <h2 class="font-display font-bold text-slate-800 mb-3">
+                <i class="fas fa-route text-indigo-500 mr-2"></i> Optimized
+                Route
+              </h2>
+              <p id="routeSubtitle" class="text-xs text-slate-400 mb-3">
+                AI-optimized visit sequence
+              </p>
+              <div
+                id="routeList"
+                class="space-y-2 max-h-[400px] overflow-y-auto"
+              ></div>
             </div>
 
-            <!-- RIGHT COLUMN -->
-            <div class="space-y-6">
-              <!-- ROUTE -->
-              <div class="glass rounded-2xl p-6 glow-lavender fade-up">
-                <h2 class="font-display text-lg font-bold text-slate-800 mb-1">
-                  Today's Route
-                </h2>
-                <p
-                  id="routeSubtitle"
-                  class="text-sm text-slate-500 mb-4 leading-relaxed"
-                >
-                  TSP-optimized by urgency.
-                </p>
-                <div id="routeBox" class="space-y-2"></div>
+            <!-- ML Intelligence -->
+            <div
+              class="bg-white rounded-2xl shadow-sm border border-slate-200 p-5"
+            >
+              <h2 class="font-display font-bold text-slate-800 mb-3">
+                <i class="fas fa-brain text-purple-500 mr-2"></i> AI
+                Intelligence
+              </h2>
+              <div class="grid grid-cols-2 gap-4">
+                <div>
+                  <p class="text-xs text-slate-400 uppercase">
+                    ML Weights (Random Forest)
+                  </p>
+                  <div id="mlWeights" class="space-y-1 mt-2"></div>
+                </div>
+                <div>
+                  <canvas id="threatChart" height="150"></canvas>
+                </div>
               </div>
-
-              <!-- COST OF INACTION -->
               <div
-                class="glass rounded-2xl p-6 border border-red-150 fade-up bg-gradient-to-b from-red-50/5 to-transparent"
-                id="inactionBox"
-              >
-                <h2 class="font-display text-lg font-bold text-slate-800 mb-1">
-                  Cost of Inaction
-                </h2>
-                <p class="text-sm text-slate-500 mb-4">
-                  If top tehsil is ignored for 14 days:
-                </p>
-                <div id="inactionContent" class="space-y-2"></div>
-              </div>
+                id="mlExplanation"
+                class="mt-3 text-xs text-slate-500 bg-slate-50 p-2 rounded-lg"
+              ></div>
+            </div>
 
-              <!-- WHAT-IF CALCULATOR (Feature D) -->
+            <!-- Cost of Inaction -->
+            <div
+              class="bg-gradient-to-r from-red-50 to-rose-50 rounded-2xl border border-red-200 p-5"
+            >
+              <h2 class="font-display font-bold text-slate-800 mb-2">
+                <i class="fas fa-exclamation-triangle text-red-500 mr-2"></i>
+                Cost of Inaction
+              </h2>
+              <p class="text-xs text-slate-500 mb-3">
+                Projected loss if top priority is ignored for 14 days
+              </p>
+              <div id="inactionContent" class="space-y-2"></div>
+            </div>
+
+            <!-- What-If Analysis -->
+            <div
+              class="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-2xl border border-blue-200 p-5"
+            >
+              <h2 class="font-display font-bold text-slate-800 mb-2">
+                <i class="fas fa-chart-line text-blue-500 mr-2"></i> What If I
+                Visit Tomorrow?
+              </h2>
+              <p class="text-xs text-slate-500 mb-3">
+                Risk reduction projection
+              </p>
+              <div id="whatIfContent" class="space-y-2"></div>
+            </div>
+
+            <!-- Market Prices -->
+            <div
+              class="bg-white rounded-2xl shadow-sm border border-slate-200 p-5 lg:col-span-2"
+            >
+              <h2 class="font-display font-bold text-slate-800 mb-3">
+                <i class="fas fa-chart-simple text-emerald-500 mr-2"></i> Mandi
+                Market Prices
+              </h2>
               <div
-                class="glass rounded-2xl p-6 fade-up border-l-4 border-indigo-500"
-                id="whatIfBox"
-              >
-                <h2 class="font-display text-lg font-bold text-slate-800 mb-1">
-                  What If I Visit Tomorrow?
-                </h2>
-                <p class="text-sm text-slate-500 mb-4">
-                  Risk projection for the top-priority tehsil:
-                </p>
-                <div id="whatIfContent" class="space-y-2"></div>
-              </div>
-
-              <!-- MARKET -->
-              <div class="glass rounded-2xl p-6 fade-up">
-                <h2 class="font-display text-lg font-bold text-slate-800 mb-4">
-                  Mandi Market Prices
-                </h2>
-                <div id="marketBox" class="space-y-3"></div>
-              </div>
+                id="marketPrices"
+                class="grid grid-cols-2 md:grid-cols-4 gap-3"
+              ></div>
             </div>
           </div>
         </div>
       </div>
     </div>
-    <script src="/static/js/main.js?v=5"></script>
+
+    <!-- JavaScript -->
+    <script src="/static/js/main.js"></script>
   </body>
 </html>

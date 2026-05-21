@@ -1,147 +1,54 @@
-html,
-body {
-  min-height: 100%;
+/* ============================================================================
+   KRITECH Dashboard - Custom Styles
+   ============================================================================ */
+
+/* Import Google Fonts */
+@import url("https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Outfit:wght@400;500;600;700;800&display=swap");
+
+/* ============================================================================
+   BASE STYLES
+   ============================================================================ */
+
+* {
   margin: 0;
   padding: 0;
+  box-sizing: border-box;
 }
+
 body {
-  background: linear-gradient(180deg, #f8fbfd 0%, #ffffff 100%);
   font-family: "Inter", sans-serif;
-  color: #0f172a;
-}
-.main-shell {
-  min-height: calc(100vh - 88px);
+  background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%);
+  min-height: 100vh;
 }
 
-.glass {
-  background: rgba(255, 255, 255, 0.9);
-  backdrop-filter: blur(24px);
-  -webkit-backdrop-filter: blur(24px);
-  border: 1px solid rgba(148, 163, 184, 0.12);
-  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.01), 0 1px 3px rgba(99, 102, 241, 0.02),
-    inset 0 0 0 1px rgba(255, 255, 255, 0.6);
-  color: #1e293b;
-  transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
+/* Custom Scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
 }
 
-.glass:hover {
-  border-color: rgba(99, 102, 241, 0.16);
-  box-shadow: 0 12px 30px rgba(99, 102, 241, 0.04),
-    0 1px 3px rgba(0, 0, 0, 0.02);
+::-webkit-scrollbar-track {
+  background: #f1f1f1;
+  border-radius: 10px;
 }
 
-.glass-bright {
-  background: rgba(255, 255, 255, 0.92);
-  backdrop-filter: blur(20px);
-  -webkit-backdrop-filter: blur(20px);
-  border: 1px solid rgba(45, 212, 191, 0.15);
-  box-shadow: 0 10px 30px rgba(45, 212, 191, 0.04),
-    inset 0 0 0 1px rgba(255, 255, 255, 0.8);
-  color: #0f172a;
+::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 10px;
 }
 
-.glow-teal {
-  box-shadow: 0 10px 30px rgba(45, 212, 191, 0.04);
-}
-.glow-teal:hover {
-  box-shadow: 0 12px 35px rgba(45, 212, 191, 0.1);
+::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8;
 }
 
-.glow-lavender {
-  box-shadow: 0 10px 30px rgba(167, 139, 250, 0.04);
-}
-.glow-lavender:hover {
-  box-shadow: 0 12px 35px rgba(167, 139, 250, 0.1);
-}
+/* ============================================================================
+   ANIMATIONS
+   ============================================================================ */
 
-.gradient-text {
-  background: linear-gradient(135deg, #0f172a 0%, #334155 100%);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-}
-
-.badge-critical {
-  background: #fef2f2 !important;
-  color: #ef4444 !important;
-  border: 1px solid #fca5a5 !important;
-}
-
-.badge-high {
-  background: #fffbeb !important;
-  color: #d97706 !important;
-  border: 1px solid #fde047 !important;
-}
-
-.badge-medium {
-  background: #f5f3ff !important;
-  color: #6d28d9 !important;
-  border: 1px solid #ddd6fe !important;
-}
-
-.badge-low {
-  background: #ecfdf5 !important;
-  color: #059669 !important;
-  border: 1px solid #a7f3d0 !important;
-}
-
-.weather-alert {
-  background: rgba(251, 191, 36, 0.14);
-  border: 1px solid rgba(245, 158, 11, 0.15);
-  color: #92400e;
-  padding: 0.9rem;
-  border-radius: 1rem;
-}
-
-.visit-scenario-card {
-  background: #ffffff;
-  border: 1px solid rgba(99, 102, 241, 0.1);
-  border-radius: 1rem;
-  padding: 1rem;
-}
-
-.score-breakdown-bar {
-  display: flex;
-  height: 0.5rem;
-  border-radius: 999px;
-  overflow: hidden;
-  background: #e2e8f0;
-}
-
-.score-breakdown-bar > div {
-  height: 100%;
-}
-
-.why-not-critical {
-  background: rgba(16, 185, 129, 0.08);
-  border: 1px solid rgba(16, 185, 129, 0.18);
-  border-radius: 1rem;
-  padding: 1rem;
-}
-
-.route-dot {
-  width: 12px;
-  height: 12px;
-  border-radius: 50%;
-  background: linear-gradient(135deg, #0ea5e9, #a78bfa);
-  box-shadow: 0 0 10px rgba(167, 139, 250, 0.4);
-  flex-shrink: 0;
-}
-
-.route-line {
-  width: 2px;
-  background: linear-gradient(
-    180deg,
-    rgba(167, 139, 250, 0.3) 0%,
-    rgba(14, 165, 233, 0.3) 100%
-  );
-  min-height: 24px;
-  margin-left: 5px;
-}
-
-@keyframes fadeUp {
+@keyframes fadeIn {
   from {
     opacity: 0;
-    transform: translateY(16px);
+    transform: translateY(10px);
   }
   to {
     opacity: 1;
@@ -149,41 +56,305 @@ body {
   }
 }
 
-.fade-up {
-  animation: fadeUp 0.5s ease-out both;
-}
-
-.fade-up-d1 {
-  animation-delay: 0.1s;
-}
-
-.fade-up-d2 {
-  animation-delay: 0.2s;
-}
-
-.fade-up-d3 {
-  animation-delay: 0.3s;
-}
-
 @keyframes pulse-glow {
   0%,
   100% {
-    background-color: rgba(239, 68, 68, 0.01);
+    box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.4);
   }
   50% {
-    background-color: rgba(239, 68, 68, 0.05);
+    box-shadow: 0 0 0 10px rgba(16, 185, 129, 0);
   }
 }
 
-.pulse-danger {
-  animation: pulse-glow 2.5s infinite ease-in-out;
+@keyframes slideInRight {
+  from {
+    transform: translateX(100%);
+    opacity: 0;
+  }
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
 }
 
-.loader {
+.fade-in {
+  animation: fadeIn 0.4s ease-out forwards;
+}
+
+.pulse-glow {
+  animation: pulse-glow 2s infinite;
+}
+
+/* ============================================================================
+   CARD STYLES
+   ============================================================================ */
+
+.glass-card {
+  background: rgba(255, 255, 255, 0.9);
+  backdrop-filter: blur(10px);
+  border: 1px solid rgba(226, 232, 240, 0.8);
+  transition: all 0.3s ease;
+}
+
+.glass-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.05),
+    0 8px 10px -6px rgba(0, 0, 0, 0.02);
+}
+
+/* Threat Level Backgrounds */
+.bg-threat-critical {
+  background: linear-gradient(135deg, #fef2f2 0%, #fee2e2 100%);
+  border-left: 3px solid #ef4444;
+}
+
+.bg-threat-high {
+  background: linear-gradient(135deg, #fff7ed 0%, #ffedd5 100%);
+  border-left: 3px solid #f97316;
+}
+
+.bg-threat-medium {
+  background: linear-gradient(135deg, #fefce8 0%, #fef08a 100%);
+  border-left: 3px solid #eab308;
+}
+
+.bg-threat-low {
+  background: linear-gradient(135deg, #f0fdf4 0%, #dcfce7 100%);
+  border-left: 3px solid #22c55e;
+}
+
+/* ============================================================================
+   MAP STYLES
+   ============================================================================ */
+
+.leaflet-container {
+  border-radius: 1rem;
+  z-index: 1;
+}
+
+.leaflet-popup-content {
+  min-width: 200px;
+  font-size: 13px;
+}
+
+.leaflet-popup-content-wrapper {
+  border-radius: 0.75rem;
+  padding: 0;
+}
+
+.custom-marker-critical {
+  background: #ef4444;
+  border: 2px solid white;
+  border-radius: 50%;
+  width: 24px;
+  height: 24px;
+  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.2);
+}
+
+.custom-marker-high {
+  background: #f97316;
+  border: 2px solid white;
+  border-radius: 50%;
+  width: 20px;
+  height: 20px;
+}
+
+.custom-marker-medium {
+  background: #eab308;
+  border: 2px solid white;
+  border-radius: 50%;
+  width: 16px;
+  height: 16px;
+}
+
+/* ============================================================================
+   TABLE STYLES
+   ============================================================================ */
+
+.priority-table {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+}
+
+.priority-table th {
+  font-size: 0.7rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: #64748b;
+  padding: 0.75rem 1rem;
+  background: #f8fafc;
+}
+
+.priority-table td {
+  padding: 0.875rem 1rem;
+  border-bottom: 1px solid #f1f5f9;
+  font-size: 0.875rem;
+}
+
+.priority-table tr:hover {
+  background: #faf5ff;
+  cursor: pointer;
+  transition: background 0.2s ease;
+}
+
+/* Score Breakdown Chips */
+.score-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0.2rem 0.5rem;
+  border-radius: 9999px;
+  font-size: 0.7rem;
+  font-weight: 600;
+}
+
+.score-chip-bio {
+  background: #d1fae5;
+  color: #059669;
+}
+.score-chip-inv {
+  background: #fed7aa;
+  color: #ea580c;
+}
+.score-chip-dig {
+  background: #e9d5ff;
+  color: #7e22ce;
+}
+.score-chip-rec {
+  background: #bfdbfe;
+  color: #2563eb;
+}
+.score-chip-pos {
+  background: #fecdd3;
+  color: #e11d48;
+}
+
+/* ============================================================================
+   BADGE STYLES
+   ============================================================================ */
+
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+  padding: 0.25rem 0.75rem;
+  border-radius: 9999px;
+  font-size: 0.7rem;
+  font-weight: 600;
+  letter-spacing: 0.025em;
+}
+
+.badge-critical {
+  background: #fee2e2;
+  color: #b91c1c;
+  border: 1px solid #fecaca;
+}
+
+.badge-high {
+  background: #ffedd5;
+  color: #c2410c;
+  border: 1px solid #fed7aa;
+}
+
+.badge-medium {
+  background: #fef9c3;
+  color: #a16207;
+  border: 1px solid #fde047;
+}
+
+.badge-low {
+  background: #dcfce7;
+  color: #166534;
+  border: 1px solid #bbf7d0;
+}
+
+/* ============================================================================
+   PROGRESS BAR
+   ============================================================================ */
+
+.progress-bar {
+  height: 6px;
+  border-radius: 3px;
+  background: #e2e8f0;
+  overflow: hidden;
+}
+
+.progress-fill {
+  height: 100%;
+  border-radius: 3px;
+  transition: width 0.5s ease;
+}
+
+.progress-critical {
+  background: linear-gradient(90deg, #ef4444, #dc2626);
+}
+.progress-high {
+  background: linear-gradient(90deg, #f97316, #ea580c);
+}
+.progress-medium {
+  background: linear-gradient(90deg, #eab308, #ca8a04);
+}
+.progress-low {
+  background: linear-gradient(90deg, #22c55e, #16a34a);
+}
+
+/* ============================================================================
+   WEATHER WIDGET
+   ============================================================================ */
+
+.weather-icon {
+  font-size: 2rem;
+  filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.1));
+}
+
+.weather-widget {
+  background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
+  border-radius: 1rem;
+  padding: 1rem;
+  color: white;
+}
+
+/* ============================================================================
+   ROUTE ITEMS
+   ============================================================================ */
+
+.route-item {
+  background: white;
+  border: 1px solid #e2e8f0;
+  border-radius: 0.75rem;
+  padding: 0.75rem;
+  transition: all 0.2s ease;
+}
+
+.route-item:hover {
+  border-color: #cbd5e1;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+}
+
+.route-number {
+  width: 28px;
+  height: 28px;
+  background: #f1f5f9;
+  border-radius: 0.5rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  font-size: 0.875rem;
+  color: #475569;
+}
+
+/* ============================================================================
+   LOADING STATES
+   ============================================================================ */
+
+.loading-spinner {
   width: 40px;
   height: 40px;
-  border: 3px solid rgba(99, 102, 241, 0.1);
-  border-bottom-color: #6366f1;
+  border: 3px solid #e2e8f0;
+  border-top-color: #10b981;
   border-radius: 50%;
   animation: spin 0.8s linear infinite;
 }
@@ -194,80 +365,109 @@ body {
   }
 }
 
-select,
-input {
-  background: #ffffff !important;
-  color: #1e293b !important;
-  border: 1px solid rgba(99, 102, 241, 0.15) !important;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.01) !important;
-  font-weight: 500 !important;
+.skeleton {
+  background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%);
+  background-size: 200% 100%;
+  animation: shimmer 1.5s infinite;
 }
 
-select:focus,
-input:focus {
-  border-color: #6366f1 !important;
-  outline: none !important;
-  box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.12) !important;
-}
-
-/* Map Overrides */
-.leaflet-container {
-  background: #f8fafc !important;
-  z-index: 10 !important;
-  border-radius: 12px;
-}
-
-.leaflet-popup-content-wrapper {
-  background: rgba(255, 255, 255, 0.98) !important;
-  color: #0f172a !important;
-  border: 1px solid rgba(99, 102, 241, 0.15) !important;
-  border-radius: 12px !important;
-  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.05) !important;
-}
-
-.leaflet-popup-tip {
-  background: rgba(255, 255, 255, 0.98) !important;
-  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.05) !important;
-}
-
-.leaflet-popup-content strong {
-  color: #0f172a !important;
-  font-weight: 700 !important;
-}
-
-.leaflet-popup-content span {
-  color: #475569 !important;
-  font-weight: 500 !important;
-}
-
-table thead tr {
-  color: #64748b !important;
-  font-weight: 600 !important;
-  border-bottom: 1px solid rgba(99, 102, 241, 0.08) !important;
-}
-
-table tbody tr {
-  border-bottom: 1px solid rgba(99, 102, 241, 0.04) !important;
-  transition: background-color 0.2s ease;
-}
-
-table tbody tr:hover {
-  background-color: rgba(99, 102, 241, 0.02) !important;
-}
-
-table tbody tr td {
-  color: #334155 !important;
-  font-weight: 500 !important;
-}
-
-@keyframes pulse-ring {
+@keyframes shimmer {
   0% {
-    box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.7);
-  }
-  70% {
-    box-shadow: 0 0 0 10px rgba(239, 68, 68, 0);
+    background-position: 200% 0;
   }
   100% {
-    box-shadow: 0 0 0 0 rgba(239, 68, 68, 0);
+    background-position: -200% 0;
+  }
+}
+
+/* ============================================================================
+   TOOLTIPS
+   ============================================================================ */
+
+[data-tooltip] {
+  position: relative;
+  cursor: help;
+}
+
+[data-tooltip]:before {
+  content: attr(data-tooltip);
+  position: absolute;
+  bottom: 100%;
+  left: 50%;
+  transform: translateX(-50%);
+  padding: 0.25rem 0.5rem;
+  background: #1e293b;
+  color: white;
+  font-size: 0.7rem;
+  border-radius: 0.25rem;
+  white-space: nowrap;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.2s;
+  z-index: 10;
+}
+
+[data-tooltip]:hover:before {
+  opacity: 1;
+}
+
+/* ============================================================================
+   RESPONSIVE
+   ============================================================================ */
+
+@media (max-width: 768px) {
+  .priority-table th,
+  .priority-table td {
+    padding: 0.5rem;
+    font-size: 0.75rem;
+  }
+
+  .score-chip {
+    font-size: 0.6rem;
+    padding: 0.1rem 0.3rem;
+  }
+}
+
+/* ============================================================================
+   UTILITY CLASSES
+   ============================================================================ */
+
+.text-gradient {
+  background: linear-gradient(135deg, #10b981, #3b82f6);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+.bg-gradient-primary {
+  background: linear-gradient(135deg, #10b981, #059669);
+}
+
+.border-gradient {
+  border-image: linear-gradient(135deg, #10b981, #3b82f6) 1;
+}
+
+.cursor-grab {
+  cursor: grab;
+}
+.cursor-grabbing {
+  cursor: grabbing;
+}
+
+/* Print Styles */
+@media print {
+  .sidebar,
+  .map,
+  .no-print {
+    display: none !important;
+  }
+
+  body {
+    background: white;
+  }
+
+  .card {
+    box-shadow: none;
+    border: 1px solid #ddd;
   }
 }
