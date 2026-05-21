@@ -729,7 +729,29 @@ function showTehsilDetail(tehsilName) {
     });
     html += `</div>`;
   }
-  content.innerHTML = html;
+  
+  // Agronomic Explainability & Advisory Panel
+  if (t.agri_advisory) {
+    const adv = t.agri_advisory;
+    html += `<div class="mt-4 pt-3 border-t border-indigo-100">
+        <div class="text-xs font-bold text-indigo-700 uppercase tracking-wider mb-2">Agronomic Advisory: ${adv.disease}</div>
+        <div class="space-y-2 text-xs">
+            <div><strong class="text-slate-700">Pathology Symptoms:</strong> <span class="text-slate-600">${adv.symptoms}</span></div>
+            <div><strong class="text-slate-700">Favorable Climate:</strong> <span class="text-slate-600">${adv.conditions}</span></div>
+            <div><strong class="text-slate-700">Yield Threat:</strong> <span class="text-slate-600">${adv.impact}</span></div>
+            <div class="bg-indigo-50/50 p-2.5 rounded-lg border border-indigo-100/50 mt-2">
+                <strong class="text-indigo-800 block mb-1">Recommended Application:</strong>
+                <span class="text-indigo-900 font-medium">${adv.guide}</span>
+                <div class="flex justify-between mt-2 text-[11px] font-semibold text-indigo-700">
+                    <span>Efficacy: ${(adv.efficacy * 100).toFixed(0)}%</span>
+                    <span>Cost: ₹${adv.cost}/acre</span>
+                </div>
+            </div>
+        </div>
+    </div>`;
+  }
+  
+  // Pest‑Climate Intelligence Panel\n  if (t.pest_climate_intel && t.pest_climate_intel.available) {\n    const pc = t.pest_climate_intel;\n    html += `<div class=\"mt-4 pt-3 border-t border-green-100\">\n        <div class=\"text-xs font-bold text-green-700 uppercase tracking-wider mb-2\">Pest‑Climate Intelligence: ${pc.disease_code.replace('_', ' ').toUpperCase()}</div>\n        <div class=\"space-y-2 text-xs\">\n            <div><strong class=\"text-slate-700\">Pathogen:</strong> <span class=\"text-slate-600\">${pc.scientific_name}</span></div>\n            <div><strong class=\"text-slate-700\">Biology:</strong> <span class=\"text-slate-600\">${pc.biology}</span></div>\n            <div><strong class=\"text-slate-700\">Field Sign:</strong> <span class=\"text-slate-600\">${pc.field_sign}</span></div>\n            <div><strong class=\"text-slate-700\">Spread:</strong> <span class=\"text-slate-600\">${pc.spread_mechanism}</span></div>\n            <div class=\"border-t border-green-50 pt-2 mt-2\">\n                <div class=\"flex justify-between\"><strong class=\"text-slate-700\">Temperature</strong> <span>${pc.temperature.current}°C (${pc.temperature.status})</span></div>\n                <div class=\"flex justify-between\"><strong class=\"text-slate-700\">Humidity</strong> <span>${pc.humidity.current}% (${pc.humidity.status})</span></div>\n                <div class=\"flex justify-between\"><strong class=\"text-slate-700\">Leaf Wetness</strong> <span>${pc.leaf_wetness.current}h (${pc.leaf_wetness.status})</span></div>\n            </div>\n            <div class=\"mt-2 text-green-800 font-medium\">${pc.overall.message}</div>\n            ${pc.forecast_warning ? `<div class=\"mt-1 text-sm text-amber-700\">${pc.forecast_warning}</div>` : ''}\n        </div>\n    </div>`;\n  }\n
 }
 
 function fetchMLWeights() {

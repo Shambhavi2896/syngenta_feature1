@@ -6,6 +6,223 @@ import backend.services.data_manager as dm
 PEST_BOOST = {"district": None, "boost": 0.0}
 ML_WEIGHTS = None
 
+# ── PEST-CLIMATE CORRELATION ENGINE (ICAR / CIMMYT thresholds) ──────────────
+PEST_CLIMATE_THRESHOLDS = {
+    'stripe_rust': {
+        'scientific_name': 'Puccinia striiformis f. sp. tritici',
+        'temp_min': 10, 'temp_max': 20, 'temp_optimal': 15,
+        'humidity_min': 60, 'humidity_critical': 80,
+        'leaf_wetness_hrs': 4,
+        'hosts': ['wheat', 'barley'],
+        'source': 'ICAR-IIWBR Technical Bulletin (2024); CIMMYT Rust Monitoring',
+        'biology': 'Urediniospores germinate on leaf surface when free moisture persists >4 hours at 10-20°C. Infection cycle completes in 7-10 days. Spore release peaks during morning dew.',
+        'field_sign': 'Look for yellow-orange linear pustules along leaf veins. Rub leaf — orange powdery spore dust confirms active sporulation.',
+        'spread_mechanism': 'Wind-borne urediniospores can travel 500+ km. Local spread accelerated by rain-splash and dense crop canopy.',
+    },
+    'leaf_rust': {
+        'scientific_name': 'Puccinia triticina',
+        'temp_min': 15, 'temp_max': 25, 'temp_optimal': 20,
+        'humidity_min': 70, 'humidity_critical': 85,
+        'leaf_wetness_hrs': 6,
+        'hosts': ['wheat'],
+        'source': 'ICAR-IIWBR Wheat Disease Guide; FAO Rust Watch Network',
+        'biology': 'Infection requires 6+ hours leaf wetness at 15-25°C. Latent period is 7-14 days. Each pustule produces ~3,000 spores per day for up to 3 weeks.',
+        'field_sign': 'Circular to oval, orange-brown pustules scattered randomly on upper leaf surface. Unlike stripe rust, pustules are NOT in linear rows.',
+        'spread_mechanism': 'Airborne urediospores. Dense planting and nitrogen-heavy fertilization increase susceptibility.',
+    },
+    'powdery_mildew': {
+        'scientific_name': 'Blumeria graminis f. sp. tritici',
+        'temp_min': 15, 'temp_max': 28, 'temp_optimal': 22,
+        'humidity_min': 50, 'humidity_critical': 70,
+        'leaf_wetness_hrs': 0,
+        'hosts': ['wheat', 'barley'],
+        'source': 'ICAR-Indian Phytopathological Society; CIB&RC Advisory',
+        'biology': 'Unlike rusts, powdery mildew does NOT need free water — high ambient humidity is sufficient. Spore germination inhibited by direct rain. Shaded, dense canopies favor infection.',
+        'field_sign': 'White to grey powdery patches on upper leaf surface. Older colonies turn brown. Yield loss occurs via reduced photosynthetic area.',
+        'spread_mechanism': 'Conidia spread by wind. Dense crop canopy and nitrogen excess accelerate development.',
+    },
+    'alternaria_blight': {
+        'scientific_name': 'Alternaria brassicae / A. brassicicola',
+        'temp_min': 20, 'temp_max': 30, 'temp_optimal': 25,
+        'humidity_min': 70, 'humidity_critical': 85,
+        'leaf_wetness_hrs': 8,
+        'hosts': ['mustard', 'rapeseed', 'cabbage'],
+        'source': 'ICAR-DRMR Bharatpur; Brassica Pathology Network India',
+        'biology': 'Conidia require 8+ hours of continuous leaf wetness at 20-30°C for infection. Intermittent wetting-drying cycles accelerate spore release from mature lesions.',
+        'field_sign': 'Concentric ring-pattern dark brown spots (target-board appearance) on leaves, stems, and silique pods. Severe cases cause premature pod shattering.',
+        'spread_mechanism': 'Rain-splash and wind spread conidia. Crop debris serves as primary inoculum source.',
+    },
+    'white_rust': {
+        'scientific_name': 'Albugo candida',
+        'temp_min': 12, 'temp_max': 22, 'temp_optimal': 16,
+        'humidity_min': 75, 'humidity_critical': 90,
+        'leaf_wetness_hrs': 4,
+        'hosts': ['mustard', 'rapeseed'],
+        'source': 'ICAR-DRMR; Indian Journal of Agricultural Sciences',
+        'biology': 'Zoospores require cool, wet conditions (12-22°C) with prolonged leaf wetness. Systemic infection causes staghead deformity in inflorescence.',
+        'field_sign': 'White chalky pustules on lower leaf surface. Corresponding yellow patches on upper surface. Staghead (hypertrophy) of flowers in severe cases.',
+        'spread_mechanism': 'Zoospores in water droplets. Oospores survive in soil/debris for multiple seasons.',
+    },
+    'botrytis_gray_mold': {
+        'scientific_name': 'Botrytis cinerea',
+        'temp_min': 15, 'temp_max': 25, 'temp_optimal': 20,
+        'humidity_min': 80, 'humidity_critical': 90,
+        'leaf_wetness_hrs': 12,
+        'hosts': ['chickpea', 'lentil', 'pea'],
+        'source': 'ICAR-IIPR Kanpur; ICRISAT Pulse Pathology',
+        'biology': 'Requires prolonged high humidity (>80%) and cool temperatures. Dense canopy creates microclimate ideal for infection. Flower petals are primary entry point.',
+        'field_sign': 'Water-soaked lesions on stems near soil line. Gray fuzzy sporulation visible under humid conditions. Rapid flower and pod drop.',
+        'spread_mechanism': 'Airborne conidia from infected plant debris. Sclerotia survive 2+ years in soil.',
+    },
+    'phytophthora_blight': {
+        'scientific_name': 'Phytophthora drechsleri / P. cajani',
+        'temp_min': 22, 'temp_max': 32, 'temp_optimal': 28,
+        'humidity_min': 85, 'humidity_critical': 95,
+        'leaf_wetness_hrs': 10,
+        'hosts': ['chickpea', 'pigeonpea'],
+        'source': 'ICAR-IIPR; ICRISAT Technical Bulletin',
+        'biology': 'Zoospore-mediated infection requires waterlogged or saturated soil conditions. Root infection leads to rapid vascular collapse. Can kill plants within 48 hours.',
+        'field_sign': 'Dark brown water-soaked stem lesions near soil line. Rapid wilting of entire plant. When split, stem shows dark brown internal discoloration.',
+        'spread_mechanism': 'Zoospores travel in soil water. Poorly drained fields and heavy clay soils amplify risk.',
+    },
+    'bollworm': {
+        'scientific_name': 'Helicoverpa armigera',
+        'temp_min': 25, 'temp_max': 35, 'temp_optimal': 30,
+        'humidity_min': 50, 'humidity_critical': 70,
+        'leaf_wetness_hrs': 0,
+        'hosts': ['cotton', 'chickpea', 'pigeonpea', 'tomato'],
+        'source': 'ICAR-CICR Nagpur; NCIPM Pest Surveillance',
+        'biology': 'Adult moth flight peaks at 25-30°C night temperatures. Larvae bore into fruiting bodies. Each female lays 500-3,000 eggs. Generation time 30-40 days.',
+        'field_sign': 'Circular bore holes in bolls/pods with frass (excreta). Larvae feed inside, causing premature boll opening.',
+        'spread_mechanism': 'Moth migration over long distances. Pheromone traps can track flight activity.',
+    },
+}
+
+
+def generate_pest_climate_intelligence(disease_key, weather_detail, dominant_crop, dominant_stage):
+    """Generate rich pest-climate explainability based on real agricultural science thresholds."""
+    disease_code = disease_key.lower().replace(' ', '_')
+    pest_info = PEST_CLIMATE_THRESHOLDS.get(disease_code)
+
+    temp = weather_detail.get('temperature', 25)
+    humidity = weather_detail.get('humidity', 50)
+    rainfall = weather_detail.get('rainfall', 0)
+    leaf_wetness = weather_detail.get('leaf_wetness', 0)
+    forecast_rain = weather_detail.get('forecast_rain_3d', 0)
+    forecast_humidity = weather_detail.get('forecast_humidity_7d', 50)
+
+    if not pest_info:
+        return {
+            'available': False,
+            'disease_code': disease_code,
+            'message': f'No pest-climate profile available for {disease_key}.'
+        }
+
+    # Temperature analysis
+    temp_in_range = pest_info['temp_min'] <= temp <= pest_info['temp_max']
+    temp_optimal_diff = abs(temp - pest_info['temp_optimal'])
+    if temp_in_range and temp_optimal_diff <= 3:
+        temp_status = 'OPTIMAL'
+        temp_detail = f"Current {temp}°C is in the optimal germination window ({pest_info['temp_min']}-{pest_info['temp_max']}°C, peak at {pest_info['temp_optimal']}°C)."
+    elif temp_in_range:
+        temp_status = 'FAVORABLE'
+        temp_detail = f"Current {temp}°C is within the active range ({pest_info['temp_min']}-{pest_info['temp_max']}°C) but {temp_optimal_diff:.0f}°C from peak."
+    elif temp < pest_info['temp_min']:
+        temp_status = 'TOO_COLD'
+        temp_detail = f"Current {temp}°C is below activation threshold ({pest_info['temp_min']}°C). Pathogen dormant."
+    else:
+        temp_status = 'TOO_HOT'
+        temp_detail = f"Current {temp}°C exceeds upper limit ({pest_info['temp_max']}°C). Thermal stress may slow pathogen."
+
+    # Humidity analysis
+    if humidity >= pest_info['humidity_critical']:
+        humidity_status = 'CRITICAL'
+        humidity_detail = f"Humidity {humidity}% exceeds critical threshold ({pest_info['humidity_critical']}%). Spore germination highly likely."
+    elif humidity >= pest_info['humidity_min']:
+        humidity_status = 'FAVORABLE'
+        humidity_detail = f"Humidity {humidity}% is above minimum threshold ({pest_info['humidity_min']}%). Conditions support infection."
+    else:
+        humidity_status = 'LOW'
+        humidity_detail = f"Humidity {humidity}% is below the {pest_info['humidity_min']}% minimum. Insufficient moisture for pathogen activity."
+
+    # Leaf wetness analysis
+    lw_needed = pest_info['leaf_wetness_hrs']
+    if lw_needed > 0:
+        if leaf_wetness >= lw_needed:
+            lw_status = 'MET'
+            lw_detail = f"Leaf wetness {leaf_wetness}h meets the {lw_needed}h+ requirement for spore germination and penetration."
+        else:
+            lw_status = 'INSUFFICIENT'
+            lw_detail = f"Leaf wetness {leaf_wetness}h is below the {lw_needed}h minimum needed. Infection unlikely without prolonged moisture."
+    else:
+        lw_status = 'NOT_REQUIRED'
+        lw_detail = f"This pathogen does not require free leaf moisture — ambient humidity is sufficient for conidial germination."
+
+    # Overall threat assessment
+    factors_met = sum([
+        temp_status in ['OPTIMAL', 'FAVORABLE'],
+        humidity_status in ['CRITICAL', 'FAVORABLE'],
+        lw_status in ['MET', 'NOT_REQUIRED']
+    ])
+
+    if factors_met == 3:
+        overall = 'ACTIVE_THREAT'
+        overall_msg = f"All climate conditions are aligned for active {pest_info['scientific_name']} infection. Immediate protective action recommended."
+    elif factors_met == 2:
+        overall = 'ELEVATED_RISK'
+        overall_msg = f"Most conditions favor {pest_info['scientific_name']} activity. Monitor closely — one weather shift could trigger outbreak."
+    elif factors_met == 1:
+        overall = 'WATCH'
+        overall_msg = f"Some conditions are trending toward {pest_info['scientific_name']} favorability. Routine scouting advised."
+    else:
+        overall = 'LOW_RISK'
+        overall_msg = f"Current climate is unfavorable for {pest_info['scientific_name']}. Standard monitoring sufficient."
+
+    # Forecast warning
+    forecast_warning = None
+    if forecast_rain > 2.0 or forecast_humidity > 80:
+        forecast_warning = f"⚠ 3-day rain forecast ({forecast_rain}mm) and 7-day humidity outlook ({forecast_humidity}%) suggest worsening conditions ahead. Pre-emptive spraying may be warranted."
+
+    return {
+        'available': True,
+        'disease_code': disease_code,
+        'scientific_name': pest_info['scientific_name'],
+        'crop': dominant_crop,
+        'stage': dominant_stage,
+        'hosts': pest_info['hosts'],
+        'source': pest_info['source'],
+        'biology': pest_info['biology'],
+        'field_sign': pest_info['field_sign'],
+        'spread_mechanism': pest_info['spread_mechanism'],
+        'temperature': {
+            'current': temp,
+            'range': f"{pest_info['temp_min']}-{pest_info['temp_max']}°C",
+            'optimal': pest_info['temp_optimal'],
+            'status': temp_status,
+            'detail': temp_detail
+        },
+        'humidity': {
+            'current': humidity,
+            'threshold': pest_info['humidity_min'],
+            'critical': pest_info['humidity_critical'],
+            'status': humidity_status,
+            'detail': humidity_detail
+        },
+        'leaf_wetness': {
+            'current': leaf_wetness,
+            'required': lw_needed,
+            'status': lw_status,
+            'detail': lw_detail
+        },
+        'overall': {
+            'status': overall,
+            'message': overall_msg,
+            'factors_met': factors_met,
+            'factors_total': 3
+        },
+        'forecast_warning': forecast_warning
+    }
+
 def learn_ml_weights():
     global ML_WEIGHTS
     if ML_WEIGHTS is not None:
@@ -160,7 +377,22 @@ def compute_tehsil_threat(tehsil, district, target_date):
         pest_prob = min(1.0, pest_prob + PEST_BOOST["boost"])
 
     # 2. INVENTORY PRESSURE SCORE
-    relevant_fungicide = 'Tilt 250 EC' if dominant_crop == 'wheat' else 'Score 250 EC'
+    relevant_fungicide = None
+    vuln_key = (dominant_crop.lower(), dominant_stage.lower())
+    if vuln_key in dm.vuln_lookup:
+        relevant_fungicide = dm.vuln_lookup[vuln_key]['product']
+    if not relevant_fungicide and pest:
+        relevant_fungicide = pest.get('product')
+    if not relevant_fungicide:
+        if dominant_crop == 'wheat':
+            relevant_fungicide = 'Tilt 250 EC'
+        elif dominant_crop == 'mustard':
+            relevant_fungicide = 'Score 250 EC'
+        elif dominant_crop == 'chickpea':
+            relevant_fungicide = 'Amistar 250 SC'
+        else:
+            relevant_fungicide = 'Kavach 75 WP'
+
     t_retailers = dm.retailers[dm.retailers['tehsil'] == tehsil] if not dm.retailers.empty else pd.DataFrame()
     retailer_ids = t_retailers['retailer_id'].tolist() if not t_retailers.empty else []
 
@@ -365,6 +597,70 @@ def compute_tehsil_threat(tehsil, district, target_date):
         if dm.fung_lookup.get(dis):
             fungicide_recs = dm.fung_lookup[dis]
 
+    # 8. AGRICULTURAL ADVISORY & EXPLAINABILITY
+    disease_key = district_disease
+    fung_detail = None
+    if disease_key in dm.fung_lookup:
+        for f in dm.fung_lookup[disease_key]:
+            if f['product'] == relevant_fungicide:
+                fung_detail = f
+                break
+        if not fung_detail and dm.fung_lookup[disease_key]:
+            fung_detail = dm.fung_lookup[disease_key][0]
+
+    advisory_dict = {
+        'stripe_rust': {
+            'symptoms': "Yellow-orange, linear stripe-like pustules on foliage. Powdery orange dust releases on touch.",
+            'conditions': "Cool, damp weather (temp 15-22°C, relative humidity >80%, leaf wetness >4 hours).",
+            'impact': "Destroys photosynthetic capacity, halts grain filling, causing up to 30-50% grain weight reduction.",
+            'guide': f"Apply {relevant_fungicide} at {fung_detail['dosage'] if fung_detail else '500ml/acre'} dilution in 200L water. Ensure thorough canopy coverage, targeting middle and lower leaf layers."
+        },
+        'alternaria_blight': {
+            'symptoms': "Dark brown concentric circular spots on leaves, stems, and silique pods, forming a target board pattern.",
+            'conditions': "Wet conditions (temp 20-28°C, relative humidity >75%, frequent rains or dew).",
+            'impact': "Induces premature defoliation, limits pod development, and causes pod shattering leading to severe seed oil drop.",
+            'guide': f"Apply {relevant_fungicide} at {fung_detail['dosage'] if fung_detail else '400ml/acre'} in 200L water. Apply at flowering start and repeat after 10-14 days if wet conditions persist."
+        },
+        'botrytis_gray_mold': {
+            'symptoms': "Water-soaked brown spots on flower stems, developing a gray fuzzy mold growth under high moisture.",
+            'conditions': "Cool, dense crop canopy (temp 18-25°C, humidity >80%, lack of wind/ventilation).",
+            'impact': "Causes rapid stem rotting, flower drop, and total pod fail, leading to direct crop loss within a short period.",
+            'guide': f"Spray {relevant_fungicide} at {fung_detail['dosage'] if fung_detail else '600ml/acre'} using a hollow cone nozzle to penetrate thick dense foliage. Best applied before dew formation."
+        },
+        'phytophthora_blight': {
+            'symptoms': "Dark brown water-soaked lesions near base of stem or branches, leading to rapid wilting and plant collapse.",
+            'conditions': "Warm, saturated soils (temp 22-30°C, stagnant water fields, heavy rainfall).",
+            'impact': "Destroys vascular tissues, blocking water uptake, causing 100% crop death of affected plants.",
+            'guide': f"Apply {relevant_fungicide} at {fung_detail['dosage'] if fung_detail else '600ml/acre'}. Improve field drainage immediately; avoid waterlogging around roots."
+        },
+        'powdery_mildew': {
+            'symptoms': "White to light-gray powdery growth on the upper surface of leaves and stems, turning brown as crop matures.",
+            'conditions': "Dry foliage with high humidity (temp 20-28°C, shaded regions, dry weather).",
+            'impact': "Accelerates leaf senescence, reducing photosynthetic duration and grain volume.",
+            'guide': f"Apply Sulfur WP or {relevant_fungicide} at {fung_detail['dosage'] if fung_detail else '800g/acre'}. Apply early morning before the sun is intense to avoid leaf scorch."
+        }
+    }
+
+    disease_code = disease_key.lower().replace(' ', '_')
+    bio_advisory = advisory_dict.get(disease_code, {
+        'symptoms': "Monitor leaves and stems for unusual spotting, color changes, or mold growth.",
+        'conditions': "Warm temperature and elevated humidity, which generally favor pathogen activity.",
+        'impact': "General loss of leaf function and compromised grain yield potential.",
+        'guide': f"Scout fields weekly. If disease signs appear, consult standard fungicide application guidelines."
+    })
+
+    agri_advisory = {
+        'disease': disease_key.replace('_', ' ').title(),
+        'symptoms': bio_advisory['symptoms'],
+        'conditions': bio_advisory['conditions'],
+        'impact': bio_advisory['impact'],
+        'guide': bio_advisory['guide'],
+        'product': relevant_fungicide,
+        'dosage': fung_detail['dosage'] if fung_detail else 'Standard Dosage',
+        'cost': fung_detail['cost'] if fung_detail else 0,
+        'efficacy': fung_detail['efficacy'] if fung_detail else 0.8
+    }
+
     # Inventory details (Bug 6 — proper labels)
     inv_details = [
         {'product': relevant_fungicide, 'qty': int(current_stock), 'status': inv_status,
@@ -428,7 +724,11 @@ def compute_tehsil_threat(tehsil, district, target_date):
         'visit_scenarios': visit_scenarios,
         'next_action': actions[0] if actions else 'Monitor status',
         'concerns': concerns, 'actions': actions,
-        'crop_price': dm.price_lookup.get(dominant_crop, {})
+        'crop_price': dm.price_lookup.get(dominant_crop, {}),
+        'agri_advisory': agri_advisory,
+        'pest_climate_intel': generate_pest_climate_intelligence(
+            district_disease, weather_detail, dominant_crop, dominant_stage
+        )
     }
 
 def post_process_threats(threats):

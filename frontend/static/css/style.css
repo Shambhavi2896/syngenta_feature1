@@ -100,6 +100,7 @@ body {
 }
 
 .score-breakdown-bar {
+  display: flex;
   height: 0.5rem;
   border-radius: 999px;
   overflow: hidden;
